@@ -31,3 +31,4 @@ COPY . .
 EXPOSE 3005
 
 # Run the application.
+CMD ["node", "index.js"]

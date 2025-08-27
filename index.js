@@ -6,7 +6,7 @@ import express from "express";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const TelegramBot = require("node-telegram-bot-api");
-import fs from "fs";
+
 import sqlite3pkg from "sqlite3";
 const sqlite3 = sqlite3pkg.verbose();
 
@@ -62,17 +62,27 @@ bot.on("callback_query", async (query) => {
     // Acknowledge the button press
     bot.answerCallbackQuery(query.id);
 
-    for(let song of tracks) {
-        await new Promise(resolve => {
+    for (let song of tracks) {
+        await new Promise((resolve, reject) => {
             db.get("SELECT * FROM songs WHERE songId = ?", [song.track.id], async (err, row) => {
                 if (err) {
                     console.error("Database error:", err);
+                    reject(err);
                     return;
+                }
+                if (row) {
+                    // Song already downloaded, skip it
+                    console.log("Skipping (already downloaded): " + song.track.name)
                 }
                 if (!row) {
                     // Song not downloaded, download and send it
-                    let filename = await downloadSong(song.track.external_urls.spotify)
-                    db.run("INSERT INTO songs (songId, title, filename) VALUES (?, ?, ?)", [song.track.id, song.track.name, filename], (err) => {})
+                    try {
+                        let filename = await downloadSong(song.track.external_urls.spotify)
+                        db.run("INSERT INTO songs (songId, title, filename) VALUES (?, ?, ?)", [song.track.id, song.track.name, filename], (err) => { })
+                    } catch (e) {
+                        console.error("Error downloading song:", e);
+                        await bot.sendMessage(chatId, `Failed to download: ${song.track.name}`);
+                    }
                 }
                 resolve()
             })

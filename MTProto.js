@@ -3,8 +3,6 @@ dotenv.config();
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions/index.js";
 import { Api } from "telegram";
-import { parseFile } from "music-metadata";
-import mime from "mime-types";
 import fs from "fs";
 
 let stringSession = new StringSession(process.env.TELEGRAM_LOGIN_TOKEN);
@@ -41,13 +39,14 @@ const downloadSong = (url) => {
                 }));
 
             if (history.messages.length >= 2) {
-                let displayMsg = displayMessage(history.messages[0])
-                console.log("Downloading: " + displayMsg)
 
-                if (history.messages[0].media === null) {
-                    console.log("Failed to download: " + displayMsg)
+                if (history.messages[0].media === null || history.messages[0].media === undefined) {
+                    console.log("Failed to download: " + url)
                     reject("No media found in the message.");
                 }
+
+                let displayMsg = displayMessage(history.messages[0])
+                console.log("Downloading: " + displayMsg)
 
                 client.downloadMedia(history.messages[0].media, { workers: 1 }).then(buffer => {
                     let fileExtentsion = ".mp3";
@@ -56,11 +55,6 @@ const downloadSong = (url) => {
                         if (attr.className === "DocumentAttributeFilename") {
                             fileExtentsion = attr.fileName.slice(attr.fileName.lastIndexOf('.'));
                         }
-
-                    const UUID = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-                        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-                        return v.toString(16);
-                    });
 
                     let filename = UUID() + fileExtentsion;
                     fs.writeFileSync("./downloads/" + filename, buffer);
@@ -98,5 +92,10 @@ const displayMessage = (message) => {
         return title + " by " + performer;
     }
 }
+
+const UUID = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+});
 
 export { client, createNewTopic, downloadSong, displayMessage };

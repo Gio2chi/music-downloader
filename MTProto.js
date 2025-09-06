@@ -29,42 +29,55 @@ const downloadSong = (url) => {
     return new Promise(async (resolve, reject) => {
         const msg = await client.sendMessage(process.env.TELEGRAM_DOWNLOAD_BOT_USERNAME, { message: url })
 
-        while (true) {
+        let found = false;
+        while (!found) {
             await new Promise(r => setTimeout(r, 1000));
             const history = await client.invoke(
                 new Api.messages.GetHistory({
                     peer: await msg.getChat(),
                     minId: msg.id,
-                    limit: 3
+                    limit: parseInt(process.env.TELEGRAM_DOWNLOAD_MAX_MSG_PER_DOWNLOAD) + 1,
                 }));
 
-            if (history.messages.length >= 2) {
+            if (history.messages.length < parseInt(process.env.TELEGRAM_DOWNLOAD_MAX_MSG_PER_DOWNLOAD))
+                continue;
 
-                if (history.messages[0].media === null || history.messages[0].media === undefined) {
-                    console.log("Failed to download: " + url)
-                    reject("No media found in the message.");
-                }
 
-                let displayMsg = displayMessage(history.messages[0])
+            for (let msg of history.messages) {
+                if(found) return;
+
+                if (msg.media === null || msg.media === undefined || 
+                    msg.media.document === null || msg.media.document === undefined
+                ) 
+                    continue;
+
+                let displayMsg = displayMessage(msg)
                 console.log("Downloading: " + displayMsg)
 
-                client.downloadMedia(history.messages[0].media, { workers: 1 }).then(buffer => {
-                    let fileExtentsion = ".mp3";
-                    const attrs = history.messages[0].media.document.attributes;
-                    for (const attr of attrs)
-                        if (attr.className === "DocumentAttributeFilename") {
-                            fileExtentsion = attr.fileName.slice(attr.fileName.lastIndexOf('.'));
-                        }
+                let fileExtentsion = ".mp3";
+                const attrs = msg.media.document.attributes;
+                for (const attr of attrs)
+                    if (attr.className === "DocumentAttributeFilename") {
+                        fileExtentsion = attr.fileName.slice(attr.fileName.lastIndexOf('.'));
+                    }
+
+                await client.downloadMedia(msg.media, { workers: 1 }).then(buffer => {
 
                     let filename = UUID() + fileExtentsion;
                     fs.writeFileSync("./downloads/" + filename, buffer);
                     console.log("✅ Saved:", displayMsg);
 
                     resolve(filename)
+                    found = true;
                 });
-
-                return
             }
+
+            if (!found) {
+                console.log("Failed to download: " + url)
+                reject("No media found in the message.");
+            }
+
+            return;
         }
     });
 }

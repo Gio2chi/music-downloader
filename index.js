@@ -62,7 +62,19 @@ bot.on("callback_query", async (query) => {
     // Acknowledge the button press
     bot.answerCallbackQuery(query.id);
 
+    let count = 0;
+    let time = Date.now();
     for (let song of tracks) {
+        if(count >= parseInt(process.env.MAX_SONGS_PER_MINUTE)) {
+            let waitTime = 60000 - (Date.now() - time);
+            if(waitTime > 0) {
+                console.log(`Rate limit reached. Waiting for ${waitTime} ms`);
+                await new Promise(r => setTimeout(r, waitTime));
+            }
+            count = 0;
+            time = Date.now();
+        }
+
         await new Promise((resolve, reject) => {
             db.get("SELECT * FROM songs WHERE songId = ?", [song.track.id], async (err, row) => {
                 if (err) {
@@ -75,10 +87,11 @@ bot.on("callback_query", async (query) => {
                     console.log("Skipping (already downloaded): " + song.track.name)
                 }
                 if (!row) {
-                    // Song not downloaded, download and send it
+                    // Song not downloaded -> download it
                     try {
                         let filename = await downloadSong(song.track.external_urls.spotify)
                         db.run("INSERT INTO songs (songId, title, filename) VALUES (?, ?, ?)", [song.track.id, song.track.name, filename], (err) => { })
+                        count++;
                     } catch (e) {
                         console.error("Error downloading song:", e);
                         await bot.sendMessage(chatId, `Failed to download: ${song.track.name}`);

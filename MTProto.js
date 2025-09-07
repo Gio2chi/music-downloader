@@ -36,10 +36,10 @@ const downloadSong = (url) => {
                 new Api.messages.GetHistory({
                     peer: await msg.getChat(),
                     minId: msg.id,
-                    limit: parseInt(process.env.TELEGRAM_DOWNLOAD_MAX_MSG_PER_DOWNLOAD) + 1,
+                    limit: parseInt(process.env.TELEGRAM_MAX_MSG_PER_DOWNLOAD) + 1,
                 }));
 
-            if (history.messages.length < parseInt(process.env.TELEGRAM_DOWNLOAD_MAX_MSG_PER_DOWNLOAD))
+            if (history.messages.length < parseInt(process.env.TELEGRAM_MAX_MSG_PER_DOWNLOAD))
                 continue;
 
 

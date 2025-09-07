@@ -1,0 +1,21 @@
+{
+  "name": "music-downloader",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "big-integer": "^1.6.52",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "node-telegram-bot-api": "^0.63.0",
+    "spotify-web-api-node": "^5.0.2",
+    "sqlite3": "^5.1.7",
+    "telegram": "^2.26.22"
+  }
+}

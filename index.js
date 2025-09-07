@@ -100,7 +100,9 @@ bot.on("callback_query", async (query) => {
                 resolve()
             })
         })
+
     }
+    bot.sendMessage(chatId, `playlist downoloaded`)
 })
 
 app.get("/login", function (req, res) {

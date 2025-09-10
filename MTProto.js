@@ -14,6 +14,10 @@ const inputChannel = new Api.InputChannel({
     accessHash: BigInt(process.env.TELEGRAM_ACCESS_HASH)
 });
 
+/**
+ * @param {string} title
+ * @returns {Promise<number>}
+ */
 const createNewTopic = async (title) => {
     const newTopic = await client.invoke(
         new Api.channels.CreateForumTopic({
@@ -25,6 +29,17 @@ const createNewTopic = async (title) => {
     return newTopic.updates[0].id;
 };
 
+if (fs.existsSync("./downloads") === false) {
+    fs.mkdirSync("./downloads");
+}
+if (fs.existsSync("./tmp") === false) {
+    fs.mkdirSync("./tmp");
+}
+
+/**
+ * @param {string} url
+ * @returns {Promise<string>}
+ */
 const downloadSong = (url) => {
     return new Promise(async (resolve, reject) => {
         const msg = await client.sendMessage(process.env.TELEGRAM_DOWNLOAD_BOT_USERNAME, { message: url })
@@ -82,10 +97,14 @@ const downloadSong = (url) => {
     });
 }
 
+/**
+ * @param {import("telegram").Api.Message} message
+ * @returns {string}
+ */
 const displayMessage = (message) => {
     if (message.message)
         return message.message;
-    else if (message && message.media && message.media.document) {
+    else if (message && message.media && message.media.document instanceof Api.Document ) {
         const attrs = message.media.document.attributes;
 
         let fileName = "unknown.mp3";
@@ -106,6 +125,10 @@ const displayMessage = (message) => {
     }
 }
 
+/** 
+ * Generate a UUID string 
+ * @returns {string}
+ */
 const UUID = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
     var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);

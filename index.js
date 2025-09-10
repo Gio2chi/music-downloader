@@ -3,9 +3,7 @@ dotenv.config();
 import querystring from "querystring";
 import express from "express";
 
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const TelegramBot = require("node-telegram-bot-api");
+import TelegramBot from "node-telegram-bot-api";
 
 import sqlite3pkg from "sqlite3";
 const sqlite3 = sqlite3pkg.verbose();
@@ -65,9 +63,9 @@ bot.on("callback_query", async (query) => {
     let count = 0;
     let time = Date.now();
     for (let song of tracks) {
-        if(count >= parseInt(process.env.MAX_SONGS_PER_MINUTE)) {
+        if (count >= parseInt(process.env.MAX_SONGS_PER_MINUTE)) {
             let waitTime = 60000 - (Date.now() - time);
-            if(waitTime > 0) {
+            if (waitTime > 0) {
                 console.log(`Rate limit reached. Waiting for ${waitTime} ms`);
                 await new Promise(r => setTimeout(r, waitTime));
             }
@@ -124,7 +122,7 @@ app.get("/login", function (req, res) {
     );
 });
 
-app.get("/callback", function (req, res) {
+app.get("/callback", async function (req, res) {
     var code = req.query.code || null;
     var state = req.query.state || null;
 
@@ -138,25 +136,34 @@ app.get("/callback", function (req, res) {
         return;
     }
 
-    login(code, state, (err) => {
-        if (err) {
-            console.error("Error updating access token:", err);
-            res.redirect("/#" + querystring.stringify({ error: "database_error" }));
-        } else {
-            bot.sendMessage(state, "You have successfully logged in to Spotify! You can now use the bot.");
-        }
-    })
+    try {
+        await login(code, state)
+    } catch (e) {
+        console.error("Login error:", e);
+        bot.sendMessage(state, "Failed to log in to Spotify. Please try again.");
+        res.send(`
+            <html>
+                <body>
+                    <script type="text/javascript">
+                    window.close();
+                    </script>
+                    <p>You can close this window.</p>
+                </body>
+            </html>
+            `);
+        return
+    }
 
     res.send(`
-    <html>
-      <body>
-        <script type="text/javascript">
-          window.close();
-        </script>
-        <p>You can close this window.</p>
-      </body>
-    </html>
-    `);
+        <html>
+        <body>
+            <script type="text/javascript">
+            window.close();
+            </script>
+            <p>You can close this window.</p>
+        </body>
+        </html>
+        `);
 
     sendMenu(state)
 });

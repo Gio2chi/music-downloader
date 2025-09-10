@@ -1,0 +1,11 @@
+.git
+.dockerignore
+Dockerfile
+.env 
+.gitignore
+node_modules
+downloads
+*.db
+*.json
+!package.json
+!template.env

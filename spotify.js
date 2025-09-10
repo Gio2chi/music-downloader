@@ -12,51 +12,71 @@ const spotifyApi = new SpotifyWebApi({
     clientSecret: process.env.CLIENT_SECRET
 });
 
-const login = (code, chatId, callback) => {
-    const authOptions = {
-        url: "https://accounts.spotify.com/api/token",
-        form: {
-            code: code,
-            redirect_uri: process.env.URL + "/callback",
-            grant_type: "authorization_code",
-        },
-        headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            Authorization:
-                "Basic " +
-                new Buffer.from(
-                    process.env.CLIENT_ID + ":" + process.env.CLIENT_SECRET
-                ).toString("base64"),
-        },
-        json: true,
-    };
+/**
+ * exchange authorization code with spotify to retrieve access and refresh tokens, then proceeds to store in the database
+ * @param {string} code 
+ * @param {number} chatId 
+ * @returns {Promise<any>}
+ */
+const login = (code, chatId) => {
+    return new Promise((resolve, reject) => {
+        const authOptions = {
+            url: "https://accounts.spotify.com/api/token",
+            form: {
+                code: code,
+                redirect_uri: process.env.URL + "/callback",
+                grant_type: "authorization_code",
+            },
+            headers: {
+                "content-type": "application/x-www-form-urlencoded",
+                Authorization:
+                    "Basic " +
+                    new Buffer.from(
+                        process.env.CLIENT_ID + ":" + process.env.CLIENT_SECRET
+                    ).toString("base64"),
+            },
+            json: true,
+        };
 
-    fetch(authOptions.url, {
-        method: "POST",
-        headers: authOptions.headers,
-        body: querystring.stringify(authOptions.form),
-    }).then(async (response) => {
-        const responseData = await response.json();
+        fetch(authOptions.url, {
+            method: "POST",
+            headers: authOptions.headers,
+            body: querystring.stringify(authOptions.form),
+        }).then(async (response) => {
+            const responseData = await response.json();
 
-        spotifyApi.setAccessToken(responseData.access_token);
-        spotifyApi.setRefreshToken(responseData.refresh_token);
-        let user = (await spotifyApi.getMe()).body
+            spotifyApi.setAccessToken(responseData.access_token);
+            spotifyApi.setRefreshToken(responseData.refresh_token);
+            let user = (await spotifyApi.getMe()).body
 
-        db.run("UPDATE tokens SET access_token = ?, refresh_token = ?, email = ?, expires_at = ? WHERE chatId = ?", 
-            [responseData.access_token, responseData.refresh_token, user.email, Date.now() + responseData.expires_in - 20, chatId], (err) => {
-            callback(err)
+            db.run("UPDATE tokens SET access_token = ?, refresh_token = ?, email = ?, expires_at = ? WHERE chatId = ?",
+                [responseData.access_token, responseData.refresh_token, user.email, Date.now() + responseData.expires_in - 20, chatId], (data, err) => {
+                    if (err) 
+                        reject(err)
+                    else
+                        resolve()
+                });
+
         });
-
-    });
-
+    })
 }
 
+/**
+ * retrieves the playlists of the user associated with the chatId 
+ * @param {number} chatId 
+ * @returns {Object}
+ */
 const getPlaylists = async (chatId) => {
     await loadTokens(chatId)
 
     return (await spotifyApi.getUserPlaylists()).body.items
 }
 
+/**
+ * retrieves the saved tracks of the user associated with the chatId 
+ * @param {number} chatId 
+ * @returns {Object}
+ */
 const getSavedTracks = async (chatId) => {
     await loadTokens(chatId);
 
@@ -72,7 +92,14 @@ const getSavedTracks = async (chatId) => {
     return songs
 }
 
+/**
+ * retrieves the tracks of a playlist of the user associated with the chatId 
+ * @param {number} chatId 
+ * @returns {Array<Object>}
+ */
 const getPlaylistTracks = async (chatId, playlistId) => {
+    await loadTokens(chatId);
+
     const limit = 50;
     let offset = 0;
     let allTracks = [];
@@ -91,6 +118,11 @@ const getPlaylistTracks = async (chatId, playlistId) => {
     return allTracks;
 }
 
+/**
+ * load the tokens for the specified user
+ * @param {number} chatId 
+ * @returns 
+ */
 const loadTokens = async (chatId) => {
     return new Promise((resolve, reject) => {
         db.get("SELECT * FROM tokens WHERE chatId = ?", [chatId], async (err, row) => {

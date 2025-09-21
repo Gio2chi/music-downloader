@@ -24,7 +24,7 @@ const login = (code, chatId) => {
             url: "https://accounts.spotify.com/api/token",
             form: {
                 code: code,
-                redirect_uri: process.env.URL + "/callback",
+                redirect_uri: process.env.REDIRECT_URI + "/callback",
                 grant_type: "authorization_code",
             },
             headers: {

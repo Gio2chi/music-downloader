@@ -1,7 +1,6 @@
 .git
 .dockerignore
 Dockerfile
-.env 
 .gitignore
 node_modules
 downloads

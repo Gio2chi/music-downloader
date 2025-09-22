@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import { TelegramClient } from "telegram";
-import { StringSession } from "telegram/sessions";
+import { StringSession } from "telegram/sessions/index.js";
 import { Api, Api as TelegramApi } from "telegram";
 import fs from "fs";
 import bigInt from "big-integer";

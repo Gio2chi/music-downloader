@@ -7,7 +7,7 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "npx tsc && docker build -t musicdl-test ."
   },
   "dependencies": {
     "big-integer": "^1.6.52",
@@ -24,7 +24,8 @@
   "devDependencies": {
     "@types/express": "^5.0.3",
     "@types/express-session": "^1.18.2",
-    "@types/node": "^24.5.1",
+    "@types/node": "^24.5.2",
+    "@types/node-telegram-bot-api": "^0.64.11",
     "@types/passport": "^1.0.17",
     "@types/passport-spotify": "^2.0.4",
     "@types/spotify-web-api-node": "^5.0.11",

@@ -1,61 +1,73 @@
-import { CLIENT_ID, CLIENT_SECRET, REDIRECT_URI } from "./Secrets"
+import { SPOTIFY } from "./Secrets.js"
 import SpotifyWebApi from "spotify-web-api-node"
-import Database, { UserSchema } from "./Database";
+import Database, { UserSchema } from "./Database.js";
+import TelegramBot from "node-telegram-bot-api"
 
 type Resolver = (user: SpotifyUser) => void;
 type Rejecter = (err: Error) => void;
 
-import express from "express";
-import session from "express-session";
-import passport from "passport";
 import { Strategy as SpotifyStrategy } from "passport-spotify";
-
-const app = express();
-
-app.use(session({ secret: "supersecret", resave: false, saveUninitialized: false }));
-app.use(passport.initialize());
-app.use(passport.session());
+import { app, passport } from "./ServerInstance.js"
 
 // Spotify strategy that returns only tokens
 passport.use(
-  new SpotifyStrategy(
-    {
-      clientID: process.env.SPOTIFY_CLIENT_ID || "",
-      clientSecret: process.env.SPOTIFY_CLIENT_SECRET || "",
-      callbackURL: "http://localhost:3000/auth/spotify/callback",
-    },
-    (accessToken, refreshToken, expires_in, profile, done) => {
-      const tokenData = { accessToken, refreshToken, expiresIn: expires_in };
-      return done(null, tokenData);
-    }
-  )
+    new SpotifyStrategy(
+        {
+            clientID: SPOTIFY.CLIENT_ID,
+            clientSecret: SPOTIFY.CLIENT_SECRET,
+            callbackURL: SPOTIFY.REDIRECT_URI + "/callback",
+        },
+        (accessToken, refreshToken, expires_in, profile, done) => {
+            const tokenData = { accessToken, refreshToken, expiresIn: expires_in };
+            return done(null, tokenData);
+        }
+    )
 );
+
+app.get('/login', (req, res, next) => {
+    const chatId = req.query.chat_id as string;
+    passport.authenticate('spotify', {
+        scope: [
+            "user-library-read",
+            "user-read-private",
+            "user-read-email",
+            "playlist-read-collaborative",
+            "playlist-modify-public",
+            "playlist-modify-private"
+        ],
+        state: chatId,
+        session: false
+    })(req, res, next);
+});
+
 
 app.get(
-  "/auth/spotify",
-  passport.authenticate("spotify", { scope: ["user-read-email"] })
-);
+    "/callback",
+    passport.authenticate("spotify", { failureRedirect: "/", session: false }),
+    (req, res) => {
+        const chatId = req.query.state as string;
+        const user = req.user as {
+            accessToken: string;
+            refreshToken: string;
+            expiresIn: number;
+        };
 
-app.get(
-  "/auth/spotify/callback",
-  passport.authenticate("spotify", { failureRedirect: "/" }),
-  (req, res) => {
-    const chatId = req.query.state as string;
-    const user = req.user as {
-      accessToken: string;
-      refreshToken: string;
-      expiresIn: number;
-    };
+        if (chatId) {
+            SpotifyUser.resolveLogin(chatId, user);
+        }
 
-    if (chatId) {
-      SpotifyUser.resolveLogin(chatId, user);
+        res.send(`
+            <html>
+            <body>
+                <script type="text/javascript">
+                window.close();
+                </script>
+                <p>You can close this window.</p>
+            </body>
+            </html>
+        `);
     }
-
-    res.send("You are logged in with Spotify. You can close this window.");
-  }
 );
-
-app.listen(3000, () => console.log("Server running on port 3000"));
 
 class SpotifyUser {
     private userId: string
@@ -66,15 +78,15 @@ class SpotifyUser {
     private email: string
 
     private spotifyWebApi = new SpotifyWebApi({
-        clientId: CLIENT_ID,
-        clientSecret: CLIENT_SECRET
+        clientId: SPOTIFY.CLIENT_ID,
+        clientSecret: SPOTIFY.CLIENT_SECRET
     });
-
 
     private static pendingLogins = new Map<string, { resolve: Resolver; reject: Rejecter; timer: NodeJS.Timeout }>();
     private static DATABASE: Database
+    private static BOT: TelegramBot
 
-    private constructor(userId: string, chatId: string, accessToken: string, refreshToken: string, expiresAt:number, email: string) {
+    private constructor(userId: string, chatId: string, accessToken: string, refreshToken: string, expiresAt: number, email: string) {
         this.userId = userId;
         this.userChatId = chatId;
         this.accessToken = accessToken;
@@ -87,11 +99,16 @@ class SpotifyUser {
         this.DATABASE = db;
     }
 
+    public static setBot(bot: TelegramBot) {
+        this.BOT = bot;
+    }
+
     public static async get(chatId: string, timeoutMs = 60000): Promise<SpotifyUser> {
         let user = await this.loadFromDatabase(chatId);
+        console.log(user)
         if (user) return user;
 
-        user = await new Promise<SpotifyUser>((resolve, reject) => {
+        user = await new Promise<SpotifyUser>(async (resolve, reject) => {
             if (this.pendingLogins.has(chatId)) {
                 return reject(new Error("Login already pending for this chat"));
             }
@@ -100,6 +117,9 @@ class SpotifyUser {
                 this.pendingLogins.delete(chatId);
                 reject(new Error("Login timed out"));
             }, timeoutMs);
+
+            await this.BOT.sendMessage(chatId, "Welcome to the Spotify Downloader Bot! To get started, please log in to your Spotify account.")
+            await this.BOT.sendMessage(chatId, "Please visit the following link to log in to Spotify and authorize the bot:\n" + SPOTIFY.REDIRECT_URI + "/login?chat_id=" + chatId)
 
             this.pendingLogins.set(chatId, { resolve, reject, timer });
         })
@@ -119,8 +139,8 @@ class SpotifyUser {
         clearTimeout(pending.timer);
 
         let spotifyApi = new SpotifyWebApi({
-            clientId: CLIENT_ID,
-            clientSecret: CLIENT_SECRET
+            clientId: SPOTIFY.CLIENT_ID,
+            clientSecret: SPOTIFY.CLIENT_SECRET
         })
 
         spotifyApi.setAccessToken(tokens.accessToken)
@@ -146,16 +166,16 @@ class SpotifyUser {
         if (!user)
             return null
 
-        return new SpotifyUser(user.userId, user.chatId, user.access_token, user.refresh_token, user.expires_at, user.email)
+        return new SpotifyUser(user.userId, user.chatId, user.accessToken, user.refreshToken, user.expiresAt, user.email)
     }
 
     private static getUserSchema(user: SpotifyUser): UserSchema {
         return {
             userId: user.userId,
             chatId: user.userChatId,
-            access_token: user.accessToken,
-            refresh_token: user.refreshToken,
-            expires_at: user.expiresAt,
+            accessToken: user.accessToken,
+            refreshToken: user.refreshToken,
+            expiresAt: user.expiresAt,
             email: user.email
         }
     }
@@ -165,8 +185,12 @@ class SpotifyUser {
         this.spotifyWebApi.setRefreshToken(this.refreshToken);
     }
 
+    public getChatId() {
+        return this.userChatId;
+    }
+
     public async getPlaylists() {
-        return (await this.spotifyWebApi.getUserPlaylists(this.userChatId)).body.items
+        return (await this.spotifyWebApi.getUserPlaylists(this.userId)).body.items
     }
 
     public async getSavedTracks() {

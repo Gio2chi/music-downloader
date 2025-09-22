@@ -5,11 +5,11 @@ CREATE TABLE IF NOT EXISTS songs (
   tags JSON
 );
 
-CREATE TABLE IF NOT EXISTS tokens (
+CREATE TABLE IF NOT EXISTS users (
   chatId INTEGER PRIMARY KEY,
+  userId VARCHAR(255),
   email VARCHAR(255),
-  access_token TEXT,
-  refresh_token TEXT,
-  expires_at INTEGER,
-  topicId INTEGER
+  accessToken TEXT,
+  refreshToken TEXT,
+  expiresAt INTEGER
 );

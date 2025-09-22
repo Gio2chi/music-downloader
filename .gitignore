@@ -2,6 +2,8 @@
 node_modules
 *.db
 *.json
+dist
+!tsconfig.json
 !package.json
 !template.env
 downloads

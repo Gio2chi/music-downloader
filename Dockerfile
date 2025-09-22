@@ -34,8 +34,8 @@ USER node
 COPY . .
 
 # Expose the port that the application listens on.
-EXPOSE 3005
+EXPOSE 3000
 
 ENTRYPOINT ["sh", "./entrypoint.sh"]
 # Run the application.
-CMD ["node", "index.js"]
+CMD ["node", "./dist/index.js"]

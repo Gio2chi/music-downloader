@@ -10,6 +10,7 @@ const sqlite3 = sqlite3pkg.verbose();
 
 import { login, getPlaylists, getSavedTracks, getPlaylistTracks } from "./spotify.js";
 import { downloadSong } from "./MTProto.js"
+import { parseSpotifyMetadata, updateMetadata } from "./metadataManager.js"
 
 const app = express();
 app.use(express.urlencoded({ extended: true }));
@@ -88,6 +89,7 @@ bot.on("callback_query", async (query) => {
                     // Song not downloaded -> download it
                     try {
                         let filename = await downloadSong(song.track.external_urls.spotify)
+                        updateMetadata( "./downloads/" + filename, await parseSpotifyMetadata(song))
                         db.run("INSERT INTO songs (songId, title, filename) VALUES (?, ?, ?)", [song.track.id, song.track.name, filename], (err) => { })
                         count++;
                     } catch (e) {
@@ -116,7 +118,7 @@ app.get("/login", function (req, res) {
             response_type: "code",
             client_id: process.env.CLIENT_ID,
             scope: scope,
-            redirect_uri: process.env.URL + "/callback",
+            redirect_uri: process.env.REDIRECT_URI + "/callback",
             state: state,
         })
     );

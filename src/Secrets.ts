@@ -1,4 +1,6 @@
 import dotenv from "dotenv";
+import DownloadResolver from "./DownloadResolver.js";
+import fs from "fs";
 dotenv.config();
 
 const {
@@ -22,10 +24,10 @@ const {
     TELEGRAM_CHANNEL_ID,
     TELEGRAM_ACCESS_HASH,
 
-    TELEGRAM_DOWNLOAD_BOT_USERNAME,
-    TELEGRAM_MAX_MSG_PER_DOWNLOAD,
+    // Download resolvers json path
+    RESOLVERS_PATH,
 
-    MAX_SONGS_PER_MINUTE,
+    DOWNLOAD_PATH
 } = process.env;
 
 if (
@@ -55,6 +57,23 @@ const TELEGRAM_BOT = { BOT_TOKEN }
 const TELEGRAM_CLIENT = { TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_LOGIN_TOKEN }
 const DATABASE = { DB_PATH: DB_PATH ? DB_PATH :  "./sqlite.db" }
 
-const MAX_SONGS_PER_MINUTE_VALUE = MAX_SONGS_PER_MINUTE ? MAX_SONGS_PER_MINUTE : "1";
 
-export { SPOTIFY, TELEGRAM_BOT, TELEGRAM_CLIENT, DATABASE, MAX_SONGS_PER_MINUTE_VALUE as MAX_SONGS_PER_MINUTE };
+const config = JSON.parse(fs.readFileSync(RESOLVERS_PATH ? RESOLVERS_PATH : "./resolvers.json", "utf-8"))
+
+DownloadResolver.setFolder( DOWNLOAD_PATH ?? "./downloads" )
+
+const RESOLVERS: DownloadResolver[] = []
+config.forEach((resolver: {
+        botUsername: string;
+        config: {
+            msgPerDownload?: number,
+            songsPerMinute?: number,
+            intervalBetweenPollsMs?: number,
+            timeout?: number
+        }
+    }) => {
+    let dr = new DownloadResolver(resolver.botUsername, config)
+    RESOLVERS.push(dr)
+});
+
+export { SPOTIFY, TELEGRAM_BOT, TELEGRAM_CLIENT, DATABASE, RESOLVERS }; 

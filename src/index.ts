@@ -1,23 +1,37 @@
 import TelegramBot from "node-telegram-bot-api";
 
-import {TELEGRAM_BOT, DATABASE, MAX_SONGS_PER_MINUTE} from "./Secrets.js"
+import { TELEGRAM_BOT, DATABASE, RESOLVERS, TELEGRAM_CLIENT } from "./Secrets.js"
 import SpotifyUser from "./SpotifyUser.js"
-import {app} from "./ServerInstance.js"
+import { app } from "./ServerInstance.js"
 
-import sqlite3pkg from "sqlite3";
-const sqlite3 = sqlite3pkg.verbose();
-
-import { downloadSong } from "./MTProto.js"
 import Database from "./Database.js";
+import DownloadResolver, { MediaNotFoundError, TimeoutError } from "./DownloadResolver.js";
+import { TelegramClient } from "telegram";
+import { StringSession } from "telegram/sessions/StringSession.js";
+
+enum DownloadStatus {
+    DOWNLOADED,
+    ALREADY_EXISTING,
+    FAILED
+}
 
 const bot = new TelegramBot(TELEGRAM_BOT.BOT_TOKEN);
 const db = new Database(DATABASE.DB_PATH)
+
+let stringSession = new StringSession(TELEGRAM_CLIENT.TELEGRAM_LOGIN_TOKEN);
+const client = new TelegramClient(
+    stringSession,
+    parseInt(TELEGRAM_CLIENT.TELEGRAM_API_ID, 10),
+    TELEGRAM_CLIENT.TELEGRAM_API_HASH,
+    { connectionRetries: 5 }
+);
+await client.connect()
 SpotifyUser.setDatabase(db);
-SpotifyUser.setBot(bot);
+DownloadResolver.setClient(client);
 
 bot.onText(/\/start/, async (msg: TelegramBot.Message) => {
     try {
-        let user = await SpotifyUser.get(msg.chat.id.toString())
+        let user = await SpotifyUser.get(msg.chat.id.toString(), bot)
         sendMenu(user)
     } catch (e) {
         console.log(e)
@@ -41,10 +55,13 @@ const sendMenu = async (user: SpotifyUser) => {
 }
 
 bot.on("callback_query", async (query: Record<string, any>) => {
+    // Acknowledge the button press
+    bot.answerCallbackQuery(query.id);
+
     const chatId = query.message.chat.id;
     const playlistName = query.data;
 
-    let user = await SpotifyUser.get(chatId)
+    let user = await SpotifyUser.get(chatId, bot)
 
     let tracks: SpotifyApi.SavedTrackObject[] | SpotifyApi.PlaylistTrackObject[]
     if (playlistName == "saved")
@@ -52,59 +69,52 @@ bot.on("callback_query", async (query: Record<string, any>) => {
     else
         tracks = await user.getPlaylistTracks(playlistName)
 
-    // Acknowledge the button press
-    bot.answerCallbackQuery(query.id);
-
-    let count = 0;
-    let time = Date.now();
+    for (const resolver of RESOLVERS)
+        resolver.startSession()
     for (let song of tracks) {
-        if (count >= parseInt(MAX_SONGS_PER_MINUTE)) {
-            let waitTime = 60000 - (Date.now() - time);
-            if (waitTime > 0) {
-                console.log(`Rate limit reached. Waiting for ${waitTime} ms`);
-                await new Promise(r => setTimeout(r, waitTime));
-            }
-            count = 0;
-            time = Date.now();
-        }
+        if (song.track == null)
+            continue
 
-        await new Promise<void>((resolve, reject) => {
-            if (song.track == null) {
-                reject()
-                return
-            }
-
-            db.get("SELECT * FROM songs WHERE songId = ?", [song.track.id], async (err, row) => {
-                if (song.track == null) {
-                    reject()
+        console.log("Downloading: " + song.track.name);
+        let response: DownloadStatus = DownloadStatus.FAILED;
+        for (const resolver of RESOLVERS) {
+            response = await new Promise<DownloadStatus>(async (resolve, reject) => {
+                if (await db.getSong(song.track!.id)) {
+                    resolve(DownloadStatus.ALREADY_EXISTING)
                     return
                 }
-                if (err) {
-                    console.error("Database error:", err);
-                    reject(err);
-                    return;
-                }
-                if (row) {
-                    // Song already downloaded, skip it
-                    console.log("Skipping (already downloaded): " + song.track.name)
-                }
-                if (!row) {
-                    // Song not downloaded -> download it
-                    try {
-                        let filename = await downloadSong(song.track.external_urls.spotify)
-                        db.run("INSERT INTO songs (songId, title, filename) VALUES (?, ?, ?)", [song.track.id, song.track.name, filename], (err) => { })
-                        count++;
-                    } catch (e) {
-                        console.error("Error downloading song:", e);
-                        await bot.sendMessage(chatId, `Failed to download: ${song.track.name}`);
+                try {
+                    let filename = await resolver.downloadSong(song.track!.external_urls.spotify)
+                    db.insertSong({ songId: song.track!.id, title: song.track!.name, filename: filename })
+                    resolve(DownloadStatus.DOWNLOADED)
+                    return
+                } catch (e) {
+                    if (e instanceof MediaNotFoundError) {
+                        resolve(DownloadStatus.FAILED)
+                    } else if (e instanceof TimeoutError) {
+                        // try again
+                        try {
+                            let filename = await resolver.downloadSong(song.track!.external_urls.spotify)
+                            db.insertSong({ songId: song.track!.id, title: song.track!.name, filename: filename })
+                            resolve(DownloadStatus.DOWNLOADED)
+                        } catch (e) {
+                            resolve(DownloadStatus.FAILED)
+                        }
                     }
                 }
-                resolve()
-            })
-        })
 
+            })
+            if (response != DownloadStatus.FAILED)
+                break;
+        }
+        if (response == DownloadStatus.DOWNLOADED)
+            console.log("✅ Saved:", song.track!.name);
+        else if (response == DownloadStatus.ALREADY_EXISTING)
+            console.log("Skipping (already downloaded): " + song.track!.name)
+        else if (response == DownloadStatus.FAILED)
+            await bot.sendMessage(chatId, `❌ Failed to download: ${song.track!.name}`);
     }
-    bot.sendMessage(chatId, `playlist downloaded`)
+    bot.sendMessage(chatId, `✅ playlist downloaded`)
 })
 
 app.post("/spotifydl/webhook", function (req, res) {

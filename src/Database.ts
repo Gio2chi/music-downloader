@@ -13,7 +13,7 @@ interface SongSchema {
     songId: string,
     filename: string,
     title: string,
-    tags: JSON
+    tags?: object
 }
 
 class Database extends sqlite3pkg.Database {

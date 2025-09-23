@@ -84,7 +84,6 @@ class SpotifyUser {
 
     private static pendingLogins = new Map<string, { resolve: Resolver; reject: Rejecter; timer: NodeJS.Timeout }>();
     private static DATABASE: Database
-    private static BOT: TelegramBot
 
     private constructor(userId: string, chatId: string, accessToken: string, refreshToken: string, expiresAt: number, email: string) {
         this.userId = userId;
@@ -99,13 +98,8 @@ class SpotifyUser {
         this.DATABASE = db;
     }
 
-    public static setBot(bot: TelegramBot) {
-        this.BOT = bot;
-    }
-
-    public static async get(chatId: string, timeoutMs = 60000): Promise<SpotifyUser> {
+    public static async get(chatId: string, bot: TelegramBot, timeoutMs = 60000): Promise<SpotifyUser> {
         let user = await this.loadFromDatabase(chatId);
-        console.log(user)
         if (user) return user;
 
         user = await new Promise<SpotifyUser>(async (resolve, reject) => {
@@ -118,8 +112,8 @@ class SpotifyUser {
                 reject(new Error("Login timed out"));
             }, timeoutMs);
 
-            await this.BOT.sendMessage(chatId, "Welcome to the Spotify Downloader Bot! To get started, please log in to your Spotify account.")
-            await this.BOT.sendMessage(chatId, "Please visit the following link to log in to Spotify and authorize the bot:\n" + SPOTIFY.REDIRECT_URI + "/login?chat_id=" + chatId)
+            await bot.sendMessage(chatId, "Welcome to the Spotify Downloader Bot! To get started, please log in to your Spotify account.")
+            await bot.sendMessage(chatId, "Please visit the following link to log in to Spotify and authorize the bot:\n" + SPOTIFY.REDIRECT_URI + "/login?chat_id=" + chatId)
 
             this.pendingLogins.set(chatId, { resolve, reject, timer });
         })

@@ -8,4 +8,5 @@ downloads
 *.json
 !resolvers.json
 !package.json
+!package-lock.json
 !template.env

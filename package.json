@@ -10,11 +10,10 @@
     "build": "npx tsc && docker build -t musicdl-test ."
   },
   "dependencies": {
-    "big-integer": "^1.6.52",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "express-session": "^1.18.2",
-    "flac-metadata": "^0.1.1",
+    "file-type": "^21.0.0",
     "metaflac-js": "^1.0.5",
     "music-metadata": "^11.9.0",
     "node-id3": "^0.2.9",
@@ -28,6 +27,7 @@
   "devDependencies": {
     "@types/express": "^5.0.3",
     "@types/express-session": "^1.18.2",
+    "@types/file-type": "^10.6.0",
     "@types/node": "^24.5.2",
     "@types/node-telegram-bot-api": "^0.64.11",
     "@types/passport": "^1.0.17",

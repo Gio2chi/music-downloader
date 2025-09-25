@@ -1,12 +1,11 @@
-ARG NODE_VERSION=18.0.0
+FROM node:20-bullseye
 
-FROM node:${NODE_VERSION}-alpine
-
-RUN apk add --no-cache python3 make g++ sqlite
+RUN apt-get update && apt-get install -y \
+    python3 python3-dev build-essential sqlite3 libsqlite3-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Use production node environment by default.
 ENV NODE_ENV=production
-
 
 WORKDIR /usr/src/app
 
@@ -21,7 +20,7 @@ WORKDIR /usr/src/app
 #     npm ci --omit=dev
 
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
 RUN chown -R node:node /usr/src/app/
 

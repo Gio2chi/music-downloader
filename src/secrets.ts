@@ -60,6 +60,8 @@ const DATABASE = { DB_PATH: DB_PATH ? DB_PATH :  "./sqlite.db" }
 
 const config = JSON.parse(fs.readFileSync(RESOLVERS_PATH ? RESOLVERS_PATH : "./resolvers.json", "utf-8"))
 
+if(!fs.existsSync(DOWNLOAD_PATH ?? "./downloads"))
+    fs.mkdirSync( DOWNLOAD_PATH ?? "./downloads" )
 DownloadResolver.setFolder( DOWNLOAD_PATH ?? "./downloads" )
 
 const RESOLVERS: DownloadResolver[] = []
@@ -72,7 +74,7 @@ config.forEach((resolver: {
             timeout?: number
         }
     }) => {
-    let dr = new DownloadResolver(resolver.botUsername, config)
+    let dr = new DownloadResolver(resolver.botUsername, resolver.config)
     RESOLVERS.push(dr)
 });
 

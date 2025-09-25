@@ -1,4 +1,4 @@
-import { SPOTIFY } from "./Secrets.js"
+import { SPOTIFY } from "./secrets.js"
 import SpotifyWebApi from "spotify-web-api-node"
 import Database, { UserSchema } from "./Database.js";
 import TelegramBot from "node-telegram-bot-api"
@@ -7,7 +7,7 @@ type Resolver = (user: SpotifyUser) => void;
 type Rejecter = (err: Error) => void;
 
 import { Strategy as SpotifyStrategy } from "passport-spotify";
-import { app, passport } from "./ServerInstance.js"
+import { app, passport } from "./serverInstance.js"
 
 // Spotify strategy that returns only tokens
 passport.use(

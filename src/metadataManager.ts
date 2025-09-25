@@ -1,73 +1,88 @@
-import fs from "fs";
 import * as mm from "music-metadata";
 import NodeID3 from "node-id3";
 import Metaflac from 'metaflac-js';
-import fileType from "file-type";
+import { fileTypeFromBuffer, fileTypeFromFile } from "file-type";
 
-export async function fetchImage(url) {
+async function fetchImage( url: string | URL ) {
   const response = await fetch(url);
   const arrayBuffer = await response.arrayBuffer();
   return Buffer.from(new Uint8Array(arrayBuffer));
 }
 
-export async function parseSpotifyMetadata(metadata) {
+export async function parseSpotifyMetadata(track: SpotifyApi.TrackObjectFull): Promise<Tags> {
 
-  let cover_url = metadata.track.album.images.filter(image => image.height == 640).map(image => image.url).pop()
+  let cover_url = track.album.images.filter(image => image.height == 640).map(image => image.url).pop()!
   const buffer = await fetchImage(cover_url)
-  const {mime} = fileType(buffer)
+  const {mime} = (await fileTypeFromBuffer(buffer))!
 
   if (mime !== 'image/jpeg' && mime !== 'image/png') {
             throw new Error(`only support image/jpeg and image/png picture temporarily, current import ${mime}`);
         }
 
   let parsed = {
-    spotifyId: metadata.track.id,
-    title: metadata.track.name,
-    artists: metadata.track.artists.map(artist => artist.name),
-    album: metadata.track.album.name,
-    year: metadata.track.album.release_date,
-    disc: metadata.track.disc_number,
-    trackNumber: metadata.track.track_number,
-    isrc: metadata.track.external_ids.isrc,
+    spotifyId: track.id,
+    title: track.name,
+    artists: track.artists.map(artist => artist.name),
+    album: track.album.name,
+    year: track.album.release_date,
+    disc: track.disc_number,
+    trackNumber: track.track_number.toString(),
+    isrc: track.external_ids.isrc,
     cover: {
       buffer: buffer,
       mime: mime
     },
-    spotifyUrl: metadata.track.external_urls.spotify,
+    spotifyUrl: track.external_urls.spotify,
   }
 
   return parsed
 }
 
+type Tags = {
+    title?: string,
+    artists?: string[],
+    album?: string,
+    year?: string,
+    genres?: string[],
+    trackNumber?: string,
+    composer?: string,
+    publisher?: string,
+    lyrics?: string,
+    cover?: {
+        mime: string,
+        buffer: Buffer
+    }
+}
+
 /**
- * Update metadata for MP3 & FLAC files.
- * @param {string} filePath - Path to the audio file.
- * @param {object} tags - Metadata object.
+ * Update metadata for MP3 & FLAC files..
  */
-export async function updateMetadata(filePath, tags) {
+export async function updateMetadata(filePath: string, tags: Tags) {
   // Detect file type
   const metadata = await mm.parseFile(filePath);
-  const format = metadata.format.container?.toLowerCase();
+  const format = metadata.format.container!.toLowerCase();
 
   if (format.includes("mpeg")) {
     // ----- MP3 -----
     const id3Tags = {
-      TIT2: tags.title,        // Title
-      TPE1: tags.artists       // Artists
-        ? tags.artist.join("/") : undefined,
-      TALB: tags.album,        // Album
-      TYER: tags.year,         // Year
-      TCON: tags.genre,        // Genre
-      TRCK: tags.trackNumber,  // Track number
-      TCOM: tags.composer,     // Composer
-      TPUB: tags.publisher,    // Publisher
-      USLT: tags.lyrics        // Lyrics
-        ? { language: "eng", description: "", lyrics: tags.lyrics }
+      title: tags.title,        // Title
+      artist: Array.isArray(tags.artists) ? tags.artists.join(";") : tags.artists, // Artists
+      album: tags.album,        // Album
+      year: tags.year,          // Year
+      genre: tags.genres ? tags.genres.join(";") : undefined, // Genre
+      trackNumber: tags.trackNumber,  // Track number
+      composer: tags.composer,     // Composer
+      publisher: tags.publisher,    // Publisher
+      unsynchronisedLyrics: tags.lyrics
+        ? { language: "eng", text: tags.lyrics }
         : undefined,
-      APIC: tags.cover
+      image: tags.cover
         ? {
           mime: tags.cover.mime,
-          type: { id: 3, name: "front cover" },
+          type: {
+            id: 3,
+            name: "front cover"
+          },
           description: "Album Art",
           imageBuffer: tags.cover.buffer
         }

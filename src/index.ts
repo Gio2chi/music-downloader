@@ -1,13 +1,14 @@
 import TelegramBot from "node-telegram-bot-api";
-
-import { TELEGRAM_BOT, DATABASE, RESOLVERS, TELEGRAM_CLIENT } from "./Secrets.js"
-import SpotifyUser from "./SpotifyUser.js"
-import { app } from "./ServerInstance.js"
-
-import Database from "./Database.js";
-import DownloadResolver, { MediaNotFoundError, TimeoutError } from "./DownloadResolver.js";
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions/StringSession.js";
+import path from "path"
+
+import { TELEGRAM_BOT, DATABASE, RESOLVERS, TELEGRAM_CLIENT } from "./secrets.js"
+import SpotifyUser from "./SpotifyUser.js"
+import { app } from "./serverInstance.js"
+import Database from "./Database.js";
+import DownloadResolver, { MediaNotFoundError, TimeoutError } from "./DownloadResolver.js";
+import { parseSpotifyMetadata, updateMetadata } from "./metadataManager.js"
 
 enum DownloadStatus {
     DOWNLOADED,
@@ -75,44 +76,55 @@ bot.on("callback_query", async (query: Record<string, any>) => {
         if (song.track == null)
             continue
 
-        console.log("Downloading: " + song.track.name);
-        let response: DownloadStatus = DownloadStatus.FAILED;
-        for (const resolver of RESOLVERS) {
-            response = await new Promise<DownloadStatus>(async (resolve, reject) => {
-                if (await db.getSong(song.track!.id)) {
-                    resolve(DownloadStatus.ALREADY_EXISTING)
-                    return
-                }
-                try {
-                    let filename = await resolver.downloadSong(song.track!.external_urls.spotify)
-                    db.insertSong({ songId: song.track!.id, title: song.track!.name, filename: filename })
-                    resolve(DownloadStatus.DOWNLOADED)
-                    return
-                } catch (e) {
-                    if (e instanceof MediaNotFoundError) {
-                        resolve(DownloadStatus.FAILED)
-                    } else if (e instanceof TimeoutError) {
-                        // try again
-                        try {
-                            let filename = await resolver.downloadSong(song.track!.external_urls.spotify)
-                            db.insertSong({ songId: song.track!.id, title: song.track!.name, filename: filename })
-                            resolve(DownloadStatus.DOWNLOADED)
-                        } catch (e) {
-                            resolve(DownloadStatus.FAILED)
-                        }
-                    }
-                }
+        if (await db.getSong(song.track.id)) {
+            console.log("Skipping (already downloaded): " + song.track!.name)
+            continue;
+        }
 
-            })
+        let response: DownloadStatus = DownloadStatus.FAILED;
+        let file: string | undefined
+
+        // Download song
+        for (const resolver of RESOLVERS) {
+            try {
+                let filename = await resolver.downloadSong(song.track!.external_urls.spotify)
+                // db.insertSong({ songId: song.track!.id, title: song.track!.name, filename: filename })
+                response = DownloadStatus.DOWNLOADED
+                file = filename
+            } catch (e) {
+                if (e instanceof MediaNotFoundError) {
+                    response = DownloadStatus.FAILED
+                    console.error(e)
+                } else if (e instanceof TimeoutError) {
+                    console.error(e)
+                    console.log("trying again")
+                    // try again
+                    try {
+                        let filename = await resolver.downloadSong(song.track!.external_urls.spotify)
+                        // db.insertSong({ songId: song.track!.id, title: song.track!.name, filename: filename })
+                        response = DownloadStatus.DOWNLOADED
+                        file = filename
+                    } catch (e) {
+                        response = DownloadStatus.FAILED
+                        console.error(e)
+                    }
+                } else {
+                    console.error("Unexpected error:", e)
+                    response = DownloadStatus.FAILED
+                }
+            }
             if (response != DownloadStatus.FAILED)
                 break;
         }
-        if (response == DownloadStatus.DOWNLOADED)
+
+        // Update metadata
+        if (response == DownloadStatus.DOWNLOADED) {
+            updateMetadata(path.join(DownloadResolver.getFolder(), file!), await parseSpotifyMetadata(song.track))
             console.log("✅ Saved:", song.track!.name);
-        else if (response == DownloadStatus.ALREADY_EXISTING)
-            console.log("Skipping (already downloaded): " + song.track!.name)
-        else if (response == DownloadStatus.FAILED)
+        } else if (response == DownloadStatus.FAILED) {
             await bot.sendMessage(chatId, `❌ Failed to download: ${song.track!.name}`);
+            console.log(`❌ Failed to download: ${song.track!.name}`)
+        }
     }
     bot.sendMessage(chatId, `✅ playlist downloaded`)
 })

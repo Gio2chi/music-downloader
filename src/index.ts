@@ -88,7 +88,7 @@ bot.on("callback_query", async (query: Record<string, any>) => {
         for (const resolver of RESOLVERS) {
             try {
                 let filename = await resolver.downloadSong(song.track!.external_urls.spotify)
-                // db.insertSong({ songId: song.track!.id, title: song.track!.name, filename: filename })
+                db.insertSong({ songId: song.track!.id, title: song.track!.name, filename: filename })
                 response = DownloadStatus.DOWNLOADED
                 file = filename
             } catch (e) {
@@ -101,7 +101,7 @@ bot.on("callback_query", async (query: Record<string, any>) => {
                     // try again
                     try {
                         let filename = await resolver.downloadSong(song.track!.external_urls.spotify)
-                        // db.insertSong({ songId: song.track!.id, title: song.track!.name, filename: filename })
+                        db.insertSong({ songId: song.track!.id, title: song.track!.name, filename: filename })
                         response = DownloadStatus.DOWNLOADED
                         file = filename
                     } catch (e) {

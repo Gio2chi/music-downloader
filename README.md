@@ -46,6 +46,7 @@ By using this software, you agree that the author assumes **no liability** for m
 - A Telegram client API ID and hash  
 - A Spotify API client (ID + secret)  
 - A running server (VPS or local) with storage for downloads  
+- A Telegram set webhook
 - (Optional) Docker for containerized deployment  
 
 ---

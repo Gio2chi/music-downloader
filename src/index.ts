@@ -2,13 +2,14 @@ import TelegramBot from "node-telegram-bot-api";
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions/StringSession.js";
 import path from "path"
+import mongoose from "mongoose";
 
 import { TELEGRAM_BOT, DATABASE, RESOLVERS, TELEGRAM_CLIENT } from "./secrets.js"
 import SpotifyUser from "./SpotifyUser.js"
 import { app } from "./serverInstance.js"
-import Database from "./Database.js";
 import DownloadResolver, { MediaNotFoundError, TimeoutError } from "./DownloadResolver.js";
-import { parseSpotifyMetadata, updateMetadata } from "./metadataManager.js"
+import { updateMetadata } from "./metadataManager.js"
+import { Song } from "./models/Song.js";
 
 enum DownloadStatus {
     DOWNLOADED,
@@ -17,7 +18,7 @@ enum DownloadStatus {
 }
 
 const bot = new TelegramBot(TELEGRAM_BOT.BOT_TOKEN);
-const db = new Database(DATABASE.DB_PATH)
+await mongoose.connect(DATABASE.DB_URL)
 
 let stringSession = new StringSession(TELEGRAM_CLIENT.TELEGRAM_LOGIN_TOKEN);
 const client = new TelegramClient(
@@ -26,8 +27,8 @@ const client = new TelegramClient(
     TELEGRAM_CLIENT.TELEGRAM_API_HASH,
     { connectionRetries: 5 }
 );
+
 await client.connect()
-SpotifyUser.setDatabase(db);
 DownloadResolver.setClient(client);
 
 bot.onText(/\/start/, async (msg: TelegramBot.Message) => {
@@ -76,21 +77,23 @@ bot.on("callback_query", async (query: Record<string, any>) => {
         if (song.track == null)
             continue
 
-        if (await db.getSong(song.track.id)) {
+        if (await Song.findOne({spotify_id: song.track.id})) {
             console.log("Skipping (already downloaded): " + song.track!.name)
             continue;
         }
 
+        let ormSong = Song.parse(song.track)
+
         let response: DownloadStatus = DownloadStatus.FAILED;
-        let file: string | undefined
 
         // Download song
         for (const resolver of RESOLVERS) {
             try {
                 let filename = await resolver.downloadSong(song.track!.external_urls.spotify)
-                db.insertSong({ songId: song.track!.id, title: song.track!.name, filename: filename })
+                ormSong.filename = filename
+                ormSong.save()
+
                 response = DownloadStatus.DOWNLOADED
-                file = filename
             } catch (e) {
                 if (e instanceof MediaNotFoundError) {
                     response = DownloadStatus.FAILED
@@ -101,9 +104,10 @@ bot.on("callback_query", async (query: Record<string, any>) => {
                     // try again
                     try {
                         let filename = await resolver.downloadSong(song.track!.external_urls.spotify)
-                        db.insertSong({ songId: song.track!.id, title: song.track!.name, filename: filename })
+                        ormSong.filename = filename
+                        ormSong.save()
+
                         response = DownloadStatus.DOWNLOADED
-                        file = filename
                     } catch (e) {
                         response = DownloadStatus.FAILED
                         console.error(e)
@@ -119,7 +123,7 @@ bot.on("callback_query", async (query: Record<string, any>) => {
 
         // Update metadata
         if (response == DownloadStatus.DOWNLOADED) {
-            updateMetadata(path.join(DownloadResolver.getFolder(), file!), await parseSpotifyMetadata(song.track))
+            updateMetadata(path.join(DownloadResolver.getFolder(), ormSong.filename), await ormSong.toTags())
             console.log("✅ Saved:", song.track!.name);
         } else if (response == DownloadStatus.FAILED) {
             await bot.sendMessage(chatId, `❌ Failed to download: ${song.track!.name}`);

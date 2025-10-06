@@ -13,7 +13,7 @@ declare const TELEGRAM_CLIENT: {
     TELEGRAM_LOGIN_TOKEN: string;
 };
 declare const DATABASE: {
-    DB_PATH: string;
+    DB_URL: string;
 };
 declare const RESOLVERS: DownloadResolver[];
 export { SPOTIFY, TELEGRAM_BOT, TELEGRAM_CLIENT, DATABASE, RESOLVERS };

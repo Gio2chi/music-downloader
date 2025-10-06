@@ -1,36 +1,6 @@
 import * as mm from "music-metadata";
 import NodeID3 from "node-id3";
 import Metaflac from 'metaflac-js';
-import { fileTypeFromBuffer } from "file-type";
-async function fetchImage(url) {
-    const response = await fetch(url);
-    const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(new Uint8Array(arrayBuffer));
-}
-export async function parseSpotifyMetadata(track) {
-    let cover_url = track.album.images.filter(image => image.height == 640).map(image => image.url).pop();
-    const buffer = await fetchImage(cover_url);
-    const { mime } = (await fileTypeFromBuffer(buffer));
-    if (mime !== 'image/jpeg' && mime !== 'image/png') {
-        throw new Error(`only support image/jpeg and image/png picture temporarily, current import ${mime}`);
-    }
-    let parsed = {
-        spotifyId: track.id,
-        title: track.name,
-        artists: track.artists.map(artist => artist.name),
-        album: track.album.name,
-        year: track.album.release_date,
-        disc: track.disc_number,
-        trackNumber: track.track_number.toString(),
-        isrc: track.external_ids.isrc,
-        cover: {
-            buffer: buffer,
-            mime: mime
-        },
-        spotifyUrl: track.external_urls.spotify,
-    };
-    return parsed;
-}
 /**
  * Update metadata for MP3 & FLAC files..
  */

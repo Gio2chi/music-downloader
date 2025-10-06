@@ -6,7 +6,7 @@ const {
 // Spotify
 CLIENT_ID, CLIENT_SECRET, REDIRECT_URI, 
 // Database
-DB_PATH, 
+DB_URL, 
 // Telegram bot
 BOT_TOKEN, 
 // Telegram Client/MTProto
@@ -28,10 +28,13 @@ if (!TELEGRAM_API_ID ||
     !TELEGRAM_LOGIN_TOKEN) {
     throw new Error("❌ Missing one or more required telegram client environment variables.");
 }
+if (!DB_URL) {
+    throw new Error("❌ Missing one or more required mongodb environment variables.");
+}
 const SPOTIFY = { CLIENT_ID, CLIENT_SECRET, REDIRECT_URI };
 const TELEGRAM_BOT = { BOT_TOKEN };
 const TELEGRAM_CLIENT = { TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_LOGIN_TOKEN };
-const DATABASE = { DB_PATH: DB_PATH ? DB_PATH : "./sqlite.db" };
+const DATABASE = { DB_URL };
 const config = JSON.parse(fs.readFileSync(RESOLVERS_PATH ? RESOLVERS_PATH : "./resolvers.json", "utf-8"));
 if (!fs.existsSync(DOWNLOAD_PATH ?? "./downloads"))
     fs.mkdirSync(DOWNLOAD_PATH ?? "./downloads");

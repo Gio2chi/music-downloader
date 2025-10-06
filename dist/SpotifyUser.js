@@ -2,6 +2,7 @@ import { SPOTIFY } from "./secrets.js";
 import SpotifyWebApi from "spotify-web-api-node";
 import { Strategy as SpotifyStrategy } from "passport-spotify";
 import { app, passport } from "./serverInstance.js";
+import { User } from "./models/User.js";
 // Spotify strategy that returns only tokens
 passport.use(new SpotifyStrategy({
     clientID: SPOTIFY.CLIENT_ID,
@@ -53,11 +54,9 @@ class SpotifyUser {
         this.userChatId = chatId;
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
-        this.email = email;
         this.expiresAt = expiresAt;
-    }
-    static setDatabase(db) {
-        this.DATABASE = db;
+        if (email)
+            this.email = email;
     }
     static async get(chatId, bot, timeoutMs = 60000) {
         let user = await this.loadFromDatabase(chatId);
@@ -76,7 +75,7 @@ class SpotifyUser {
             this.pendingLogins.set(chatId, { resolve, reject, timer });
         });
         user.loadTokens();
-        this.DATABASE.insertOrUpdateUser(this.getUserSchema(user));
+        (new User(this.getUserSchema(user))).save();
         return user;
     }
     static async resolveLogin(chatId, tokens) {
@@ -94,26 +93,23 @@ class SpotifyUser {
         pending.resolve(new SpotifyUser(user.id, chatId, tokens.accessToken, tokens.refreshToken, tokens.expiresIn, user.email));
         this.pendingLogins.delete(chatId);
     }
-    save() {
-        SpotifyUser.DATABASE.insertOrUpdateUser(SpotifyUser.getUserSchema(this));
-    }
     static async loadFromDatabase(chatId) {
-        let user = this.parse(await this.DATABASE.getUser(chatId));
+        let user = this.parse(await User.findOne({ telegram_chat_id: chatId }));
         user?.loadTokens();
         return user;
     }
     static parse(user) {
         if (!user)
             return null;
-        return new SpotifyUser(user.userId, user.chatId, user.accessToken, user.refreshToken, user.expiresAt, user.email);
+        return new SpotifyUser(user.spotify_id, user.telegram_chat_id, user.access_token, user.refresh_token, user.expires_at, user.email);
     }
     static getUserSchema(user) {
         return {
-            userId: user.userId,
-            chatId: user.userChatId,
-            accessToken: user.accessToken,
-            refreshToken: user.refreshToken,
-            expiresAt: user.expiresAt,
+            spotify_id: user.userId,
+            telegram_chat_id: user.userChatId,
+            access_token: user.accessToken,
+            refresh_token: user.refreshToken,
+            expires_at: user.expiresAt,
             email: user.email
         };
     }

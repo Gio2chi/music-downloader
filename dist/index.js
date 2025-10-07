@@ -9,6 +9,9 @@ import { app } from "./serverInstance.js";
 import DownloadResolver, { MediaNotFoundError, TimeoutError } from "./DownloadResolver.js";
 import { updateMetadata } from "./metadataManager.js";
 import { Song } from "./models/Song.js";
+import { Playlist } from "./models/Playlist.js";
+import { User } from "./models/User.js";
+import { PlaylistSong } from "./models/PlaylistSong.js";
 var DownloadStatus;
 (function (DownloadStatus) {
     DownloadStatus[DownloadStatus["DOWNLOADED"] = 0] = "DOWNLOADED";
@@ -46,23 +49,39 @@ bot.on("callback_query", async (query) => {
     // Acknowledge the button press
     bot.answerCallbackQuery(query.id);
     const chatId = query.message.chat.id;
-    const playlistName = query.data;
+    const playlistSpotifyId = query.data;
     let user = await SpotifyUser.get(chatId, bot);
+    let playlistData = { name: playlistSpotifyId, owner: (await User.findOne({ telegram_chat_id: chatId }))?._id };
+    let tmp;
+    let playlist;
+    if ((tmp = await Playlist.findOne(playlistData)))
+        playlist = tmp;
+    else {
+        playlist = new Playlist(playlistData);
+        playlist.save();
+        let usr = await User.findById(playlist.owner);
+        usr.playlists.push(playlist._id);
+        usr.save();
+    }
     let tracks;
-    if (playlistName == "saved")
+    if (playlistSpotifyId == "saved")
         tracks = await user.getSavedTracks();
     else
-        tracks = await user.getPlaylistTracks(playlistName);
+        tracks = await user.getPlaylistTracks(playlistSpotifyId);
     for (const resolver of RESOLVERS)
         resolver.startSession();
     for (let song of tracks) {
         if (song.track == null)
             continue;
-        if (await Song.findOne({ spotify_id: song.track.id })) {
+        let ormSong = Song.parse(song.track);
+        if (tmp = await Song.findOne({ spotify_id: song.track.id })) {
+            if (!(await PlaylistSong.findOne({ playlistId: playlist._id, songId: tmp._id, added_at: song.added_at }))) {
+                tmp = new PlaylistSong({ playlistId: playlist._id, songId: tmp._id, added_at: song.added_at });
+                tmp.save();
+            }
             console.log("Skipping (already downloaded): " + song.track.name);
             continue;
         }
-        let ormSong = Song.parse(song.track);
         let response = DownloadStatus.FAILED;
         // Download song
         for (const resolver of RESOLVERS) {
@@ -70,6 +89,10 @@ bot.on("callback_query", async (query) => {
                 let filename = await resolver.downloadSong(song.track.external_urls.spotify);
                 ormSong.filename = filename;
                 ormSong.save();
+                if (!(await PlaylistSong.findOne({ playlistId: playlist._id, songId: ormSong._id, added_at: song.added_at }))) {
+                    tmp = new PlaylistSong({ playlistId: playlist._id, songId: ormSong._id, added_at: song.added_at });
+                    tmp.save();
+                }
                 response = DownloadStatus.DOWNLOADED;
             }
             catch (e) {
@@ -85,6 +108,10 @@ bot.on("callback_query", async (query) => {
                         let filename = await resolver.downloadSong(song.track.external_urls.spotify);
                         ormSong.filename = filename;
                         ormSong.save();
+                        if (!(await PlaylistSong.findOne({ playlistId: playlist._id, songId: ormSong._id, added_at: song.added_at }))) {
+                            tmp = new PlaylistSong({ playlistId: playlist._id, songId: ormSong._id, added_at: song.added_at });
+                            tmp.save();
+                        }
                         response = DownloadStatus.DOWNLOADED;
                     }
                     catch (e) {

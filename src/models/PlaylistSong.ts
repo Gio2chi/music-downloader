@@ -12,4 +12,6 @@ const PlaylistSongSchema = new Schema<IPlaylistSong>({
     added_at: { type: Date, default: Date.now }
 });
 
+PlaylistSongSchema.index({ playlistId: 1, songId: 1, added_at: 1 }, { unique: true });
+
 export const PlaylistSong = model("PlaylistSong", PlaylistSongSchema);

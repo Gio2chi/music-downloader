@@ -90,12 +90,14 @@ class SpotifyUser {
         spotifyApi.setAccessToken(tokens.accessToken);
         spotifyApi.setRefreshToken(tokens.refreshToken);
         let user = (await spotifyApi.getMe()).body;
-        pending.resolve(new SpotifyUser(user.id, chatId, tokens.accessToken, tokens.refreshToken, tokens.expiresIn, user.email));
+        pending.resolve(new SpotifyUser(user.id, chatId, tokens.accessToken, tokens.refreshToken, new Date(Date.now() + tokens.expiresIn), user.email));
         this.pendingLogins.delete(chatId);
     }
     static async loadFromDatabase(chatId) {
         let user = this.parse(await User.findOne({ telegram_chat_id: chatId }));
         user?.loadTokens();
+        let newToken = await user?.spotifyWebApi.refreshAccessToken();
+        user?.spotifyWebApi.setAccessToken(newToken.body.access_token);
         return user;
     }
     static parse(user) {

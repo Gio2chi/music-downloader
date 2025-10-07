@@ -24,8 +24,6 @@ RUN npm ci --omit=dev
 
 RUN chown -R node:node /usr/src/app/
 
-COPY entrypoint.sh ./
-
 # Run the application as a non-root user.
 USER node
 

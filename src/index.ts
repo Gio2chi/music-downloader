@@ -2,7 +2,7 @@ import TelegramBot from "node-telegram-bot-api";
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions/StringSession.js";
 import path from "path"
-import mongoose from "mongoose";
+import mongoose, { HydratedDocument } from "mongoose";
 
 import { TELEGRAM_BOT, DATABASE, RESOLVERS, TELEGRAM_CLIENT } from "./secrets.js"
 import SpotifyUser from "./SpotifyUser.js"
@@ -10,6 +10,9 @@ import { app } from "./serverInstance.js"
 import DownloadResolver, { MediaNotFoundError, TimeoutError } from "./DownloadResolver.js";
 import { updateMetadata } from "./metadataManager.js"
 import { Song } from "./models/Song.js";
+import { IPlaylist, Playlist } from "./models/Playlist.js";
+import { IUser, User } from "./models/User.js";
+import { PlaylistSong } from "./models/PlaylistSong.js";
 
 enum DownloadStatus {
     DOWNLOADED,
@@ -61,15 +64,31 @@ bot.on("callback_query", async (query: Record<string, any>) => {
     bot.answerCallbackQuery(query.id);
 
     const chatId = query.message.chat.id;
-    const playlistName = query.data;
+    const playlistSpotifyId = query.data;
 
     let user = await SpotifyUser.get(chatId, bot)
 
+    let playlistData: any = { name: playlistSpotifyId, owner: (await User.findOne({ telegram_chat_id: chatId }))?._id }
+    let tmp: any
+    let playlist: HydratedDocument<IPlaylist>
+    if ((tmp = await Playlist.findOne(playlistData)))
+        playlist = tmp
+    else {
+        playlist = new Playlist(playlistData)
+        playlist.save()
+
+        let usr = await User.findById(playlist.owner)
+        usr!.playlists!.push(playlist._id as unknown as mongoose.Schema.Types.ObjectId)
+        usr!.save()
+    }
+
+
+
     let tracks: SpotifyApi.SavedTrackObject[] | SpotifyApi.PlaylistTrackObject[]
-    if (playlistName == "saved")
+    if (playlistSpotifyId == "saved")
         tracks = await user.getSavedTracks()
     else
-        tracks = await user.getPlaylistTracks(playlistName)
+        tracks = await user.getPlaylistTracks(playlistSpotifyId)
 
     for (const resolver of RESOLVERS)
         resolver.startSession()
@@ -77,12 +96,19 @@ bot.on("callback_query", async (query: Record<string, any>) => {
         if (song.track == null)
             continue
 
-        if (await Song.findOne({spotify_id: song.track.id})) {
+        let ormSong = Song.parse(song.track)
+
+        if (tmp = await Song.findOne({ spotify_id: song.track.id })) {
+
+            if( !(await PlaylistSong.findOne({ playlistId: playlist._id, songId: tmp._id, added_at: song.added_at })))
+            {
+                tmp = new PlaylistSong({ playlistId: playlist._id, songId: tmp._id, added_at: song.added_at })
+                tmp.save()
+            }
+
             console.log("Skipping (already downloaded): " + song.track!.name)
             continue;
         }
-
-        let ormSong = Song.parse(song.track)
 
         let response: DownloadStatus = DownloadStatus.FAILED;
 
@@ -92,6 +118,12 @@ bot.on("callback_query", async (query: Record<string, any>) => {
                 let filename = await resolver.downloadSong(song.track!.external_urls.spotify)
                 ormSong.filename = filename
                 ormSong.save()
+
+                if( !(await PlaylistSong.findOne({ playlistId: playlist._id, songId: ormSong._id, added_at: song.added_at })))
+                {
+                    tmp = new PlaylistSong({ playlistId: playlist._id, songId: ormSong._id, added_at: song.added_at })
+                    tmp.save()
+                }
 
                 response = DownloadStatus.DOWNLOADED
             } catch (e) {
@@ -106,6 +138,12 @@ bot.on("callback_query", async (query: Record<string, any>) => {
                         let filename = await resolver.downloadSong(song.track!.external_urls.spotify)
                         ormSong.filename = filename
                         ormSong.save()
+
+                        if( !(await PlaylistSong.findOne({ playlistId: playlist._id, songId: ormSong._id, added_at: song.added_at })))
+                        {
+                            tmp = new PlaylistSong({ playlistId: playlist._id, songId: ormSong._id, added_at: song.added_at })
+                            tmp.save()
+                        }
 
                         response = DownloadStatus.DOWNLOADED
                     } catch (e) {

@@ -4,7 +4,7 @@ export interface IUser {
     telegram_chat_id: string;
     access_token: string;
     refresh_token: string;
-    expires_at: number;
+    expires_at: Date;
     playlists?: Schema.Types.ObjectId[];
     email?: string;
 }

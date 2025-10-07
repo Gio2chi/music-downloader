@@ -1,5 +1,6 @@
 import { Schema } from "mongoose";
 export interface IPlaylist {
+    owner: Schema.Types.ObjectId;
     name: string;
 }
 export declare const PlaylistSchema: Schema<IPlaylist, import("mongoose").Model<IPlaylist, any, any, any, import("mongoose").Document<unknown, any, IPlaylist, any, {}> & IPlaylist & {

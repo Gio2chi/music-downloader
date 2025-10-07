@@ -40,7 +40,6 @@ app.get('/login', (req, res, next) => {
     })(req, res, next);
 });
 
-
 app.get(
     "/callback",
     passport.authenticate("spotify", { failureRedirect: "/", session: false }),
@@ -74,7 +73,7 @@ class SpotifyUser {
     private userChatId: string
     private accessToken: string
     private refreshToken: string
-    private expiresAt: number
+    private expiresAt: Date
     private email?: string
 
     private spotifyWebApi = new SpotifyWebApi({
@@ -84,7 +83,7 @@ class SpotifyUser {
 
     private static pendingLogins = new Map<string, { resolve: Resolver; reject: Rejecter; timer: NodeJS.Timeout }>();
 
-    private constructor(userId: string, chatId: string, accessToken: string, refreshToken: string, expiresAt: number, email?: string) {
+    private constructor(userId: string, chatId: string, accessToken: string, refreshToken: string, expiresAt: Date, email?: string) {
         this.userId = userId;
         this.userChatId = chatId;
         this.accessToken = accessToken;
@@ -138,13 +137,15 @@ class SpotifyUser {
 
         let user = (await spotifyApi.getMe()).body
 
-        pending.resolve(new SpotifyUser(user.id, chatId, tokens.accessToken, tokens.refreshToken, tokens.expiresIn, user.email));
+        pending.resolve(new SpotifyUser(user.id, chatId, tokens.accessToken, tokens.refreshToken, new Date(Date.now() + tokens.expiresIn), user.email));
         this.pendingLogins.delete(chatId);
     }
 
     private static async loadFromDatabase(chatId: string): Promise<SpotifyUser | null> {
         let user = this.parse(await User.findOne({telegram_chat_id: chatId}));
         user?.loadTokens();
+        let newToken = await user?.spotifyWebApi.refreshAccessToken()
+        user?.spotifyWebApi.setAccessToken(newToken!.body.access_token)
         return user;
     }
 

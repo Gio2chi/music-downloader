@@ -16,13 +16,16 @@ class DownloadResolver {
     private time = 0;
     private count = 0;
 
+    private priority: number
+
     constructor(
         botUsername: string,
         config: {
             msgPerDownload?: number,
             songsPerMinute?: number,
             intervalBetweenPollsMs?: number,
-            timeout?: number
+            timeout?: number,
+            priority?: number
         } = {}
     ) {
         this.botUsername = botUsername;
@@ -30,6 +33,7 @@ class DownloadResolver {
         this.songsPerMinute = config.songsPerMinute ?? 10;
         this.intervalBetweenPollsMs = config.intervalBetweenPollsMs ?? 1000;
         this.timeout = config.timeout ?? 60 * 1000;
+        this.priority = config.priority ?? 0
     }
 
     public static setClient(client: TelegramClient) {
@@ -50,6 +54,11 @@ class DownloadResolver {
             const v = c === "x" ? r : (r & 0x3) | 0x8;
             return v.toString(16);
         });
+    }
+
+    public getPriority()
+    {
+        return this.priority
     }
 
     public getMaxSongsPerMinute() {

@@ -1,6 +1,6 @@
 import { Api, TelegramClient } from "telegram";
 import fs from "fs"
-import path, { resolve } from "path";
+import path from "path";
 
 export class TimeoutError extends Error { }
 export class MediaNotFoundError extends Error { }
@@ -23,16 +23,16 @@ class DownloadResolver {
             msgPerDownload?: number,
             songsPerMinute?: number,
             intervalBetweenPollsMs?: number,
-            timeout?: number,
-            priority?: number
-        } = {}
+            timeout?: number
+        } = {},
+        priority?: number
     ) {
         this.botUsername = botUsername;
         this.msgPerDownload = config.msgPerDownload ?? 1;
         this.songsPerMinute = config.songsPerMinute ?? 10;
         this.intervalBetweenPollsMs = config.intervalBetweenPollsMs ?? 1000;
         this.timeout = config.timeout ?? 60 * 1000;
-        this.priority = config.priority ?? 0
+        this.priority = priority ?? 0
     }
 
     public static setFolder(folder: string) {

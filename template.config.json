@@ -1,0 +1,20 @@
+{
+    "telegram_clients": [
+        {
+            "api_id": "",
+            "api_hash": "",
+            "login_token": ""
+        }
+    ],
+    "resolvers": [
+        {
+            "botUsername": "",
+            "config": {
+                "timeout": 0,
+                "msgPerDownload": 1,
+                "songsPerMinute": 0
+            },
+            "priority": 0
+        }
+    ]
+}

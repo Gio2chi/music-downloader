@@ -13,9 +13,9 @@ import { app, passport } from "./serverInstance.js"
 passport.use(
     new SpotifyStrategy(
         {
-            clientID: SPOTIFY.CLIENT_ID,
-            clientSecret: SPOTIFY.CLIENT_SECRET,
-            callbackURL: SPOTIFY.REDIRECT_URI + "/callback",
+            clientID: SPOTIFY.SPOTIFY_CLIENT_ID,
+            clientSecret: SPOTIFY.SPOTIFY_CLIENT_SECRET,
+            callbackURL: SPOTIFY.SPOTIFY_REDIRECT_URI + "/callback",
         },
         (accessToken, refreshToken, expires_in, profile, done) => {
             const tokenData = { accessToken, refreshToken, expiresIn: expires_in };
@@ -78,8 +78,8 @@ class SpotifyUser {
     private email: string
 
     private spotifyWebApi = new SpotifyWebApi({
-        clientId: SPOTIFY.CLIENT_ID,
-        clientSecret: SPOTIFY.CLIENT_SECRET
+        clientId: SPOTIFY.SPOTIFY_CLIENT_ID,
+        clientSecret: SPOTIFY.SPOTIFY_CLIENT_SECRET
     });
 
     private static pendingLogins = new Map<string, { resolve: Resolver; reject: Rejecter; timer: NodeJS.Timeout }>();
@@ -113,7 +113,7 @@ class SpotifyUser {
             }, timeoutMs);
 
             await bot.sendMessage(chatId, "Welcome to the Spotify Downloader Bot! To get started, please log in to your Spotify account.")
-            await bot.sendMessage(chatId, "Please visit the following link to log in to Spotify and authorize the bot:\n" + SPOTIFY.REDIRECT_URI + "/login?chat_id=" + chatId)
+            await bot.sendMessage(chatId, "Please visit the following link to log in to Spotify and authorize the bot:\n" + SPOTIFY.SPOTIFY_REDIRECT_URI + "/login?chat_id=" + chatId)
 
             this.pendingLogins.set(chatId, { resolve, reject, timer });
         })
@@ -133,8 +133,8 @@ class SpotifyUser {
         clearTimeout(pending.timer);
 
         let spotifyApi = new SpotifyWebApi({
-            clientId: SPOTIFY.CLIENT_ID,
-            clientSecret: SPOTIFY.CLIENT_SECRET
+            clientId: SPOTIFY.SPOTIFY_CLIENT_ID,
+            clientSecret: SPOTIFY.SPOTIFY_CLIENT_SECRET
         })
 
         spotifyApi.setAccessToken(tokens.accessToken)

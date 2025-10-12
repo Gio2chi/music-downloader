@@ -1,10 +1,10 @@
 import { TelegramClient } from "telegram";
-import PriorityWorkerQueue from "../core/PriorityWorkerQueue";
-import WorkerInterface from "../core/WorkerInterface";
-import DownloadResolver from "../download/DownloadResolver";
-import { DownloadTaskBody, DownloadTaskResult, DownloadTask } from "../download/DownloadTask";
-import DownloadWorker from "../download/DownloadWorker";
-import { TelegramTask, TelegramTaskBody } from "./TelegramTask";
+import PriorityWorkerQueue from "../core/PriorityWorkerQueue.js";
+import WorkerInterface from "../core/WorkerInterface.js";
+import DownloadResolver from "../download/DownloadResolver.js";
+import { DownloadTaskBody, DownloadTaskResult, DownloadTask } from "../download/DownloadTask.js";
+import DownloadWorker from "../download/DownloadWorker.js";
+import { TelegramTask, TelegramTaskBody } from "./TelegramTask.js";
 
 const SongQueue = PriorityWorkerQueue<DownloadTaskBody, DownloadTaskResult, DownloadWorker>;
 type SongQueue = InstanceType<typeof SongQueue>;
@@ -23,6 +23,6 @@ export default class TelegramWorker implements WorkerInterface<TelegramTaskBody,
 
     async run(task: TelegramTask): Promise<void> {
         let body: DownloadTaskBody = {...task.body, client: this.client}
-        this.songQ.addTask(new DownloadTask(body))
+        this.songQ.addTask(new DownloadTask(body, task.body.onSuccess, task.body.onFailure))
     }
 }

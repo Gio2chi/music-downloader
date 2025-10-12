@@ -61,8 +61,13 @@ By using this software, you agree that the author assumes **no liability** for m
    ```
 2. Configure the environment (.env file).
 3. Configure the config.json file following the template format:
-   - "telegram_clients" is an array of strings in which are stored cookies of telegram clients
-   - each object in the "resolvers" array is a telegram bot capable of downloading a song when the spotify link to it is sent:
+   - "telegram_clients" is an array of strings in which are stored cookie sessions of telegram clients:
+     run 
+     ```bash
+     node config.helper.js
+     ```
+     to retrieve those cookies
+   - each object in the "resolvers" array is a telegram bot capable of downloading a song when sending the spotify link to it:
        "priority" determines the order in which workers are tried — lower values are attempted first, same priority = loadbalance 
 4. Initialize the database (entrypoint.sh).
 5. Install dependencies:

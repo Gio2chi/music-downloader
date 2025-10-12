@@ -15,6 +15,7 @@
     "express": "^5.1.0",
     "express-session": "^1.18.2",
     "file-type": "^21.0.0",
+    "input": "^1.0.1",
     "metaflac-js": "^1.0.5",
     "music-metadata": "^11.9.0",
     "node-id3": "^0.2.9",

@@ -6,7 +6,6 @@ export class TimeoutError extends Error { }
 export class MediaNotFoundError extends Error { }
 
 class DownloadResolver {
-    private static client: TelegramClient;
     private static downloadFolder: string;
     private botUsername: string;
     private msgPerDownload: number;
@@ -34,10 +33,6 @@ class DownloadResolver {
         this.intervalBetweenPollsMs = config.intervalBetweenPollsMs ?? 1000;
         this.timeout = config.timeout ?? 60 * 1000;
         this.priority = config.priority ?? 0
-    }
-
-    public static setClient(client: TelegramClient) {
-        this.client = client;
     }
 
     public static setFolder(folder: string) {
@@ -69,7 +64,7 @@ class DownloadResolver {
         this.time = Date.now()
     }
 
-    public async downloadSong(url: string, filenameWithoutExtension = DownloadResolver.UUID()): Promise<string> {
+    public async downloadSong(client: TelegramClient, url: string, filenameWithoutExtension = DownloadResolver.UUID()): Promise<string> {
         if (this.count >= this.songsPerMinute) {
             let waitTime = 60000 - (Date.now() - this.time);
             if (waitTime > 0) {
@@ -85,7 +80,7 @@ class DownloadResolver {
         );
 
         const downloadPromise = new Promise<string>(async (resolve, reject) => {
-            const msg = await DownloadResolver.client.sendMessage(this.botUsername, {
+            const msg = await client.sendMessage(this.botUsername, {
                 message: url,
             });
 
@@ -94,7 +89,7 @@ class DownloadResolver {
             while (!found) {
                 await new Promise((r) => setTimeout(r, this.intervalBetweenPollsMs));
 
-                const history = await DownloadResolver.client.invoke(
+                const history = await client.invoke(
                     new Api.messages.GetHistory({
                         peer: await msg.getChat(),
                         minId: msg.id,
@@ -131,7 +126,7 @@ class DownloadResolver {
                         }
                     }
 
-                    const buffer = await DownloadResolver.client.downloadMedia(historyMsg.media);
+                    const buffer = await client.downloadMedia(historyMsg.media);
 
                     const filename = filenameWithoutExtension + fileExtension;
                     fs.writeFileSync(path.join(DownloadResolver.downloadFolder, filename), buffer as Buffer);

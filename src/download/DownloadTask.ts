@@ -2,8 +2,10 @@ import path from "path";
 import TaskInterface from "../core/TaskInterface";
 import { updateMetadata, parseSpotifyMetadata } from "../metadataManager";
 import DownloadResolver from "./DownloadResolver";
+import { TelegramClient } from "telegram";
 
 export type DownloadTaskBody = {
+    client: TelegramClient
     track: SpotifyApi.TrackObjectFull,
     added_at: Date
     filename?: string

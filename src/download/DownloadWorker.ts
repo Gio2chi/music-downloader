@@ -13,7 +13,7 @@ export default class DownloadWorker implements WorkerInterface<DownloadTaskBody,
     }
 
     async run(task: DownloadTask): Promise<DownloadTaskResult> {
-        let filename = await this.resolver.downloadSong(task.body.track.external_urls.spotify, task.body.filename)
+        let filename = await this.resolver.downloadSong(task.body.client, task.body.track.external_urls.spotify, task.body.filename)
         return { filename }
     }
 }

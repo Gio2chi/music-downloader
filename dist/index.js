@@ -1,26 +1,22 @@
 import TelegramBot from "node-telegram-bot-api";
-import { TelegramClient } from "telegram";
-import { StringSession } from "telegram/sessions/StringSession.js";
 import path from "path";
-import { TELEGRAM_BOT, DATABASE, RESOLVERS, TELEGRAM_CLIENT } from "./secrets.js";
+import { TELEGRAM_BOT, DATABASE, RESOLVERS, TELEGRAM_CLIENTS } from "./secrets.js";
 import SpotifyUser from "./SpotifyUser.js";
 import { app } from "./serverInstance.js";
 import Database from "./Database.js";
-import DownloadResolver, { MediaNotFoundError, TimeoutError } from "./DownloadResolver.js";
+import DownloadResolver from "./download/DownloadResolver.js";
 import { parseSpotifyMetadata, updateMetadata } from "./metadataManager.js";
-var DownloadStatus;
-(function (DownloadStatus) {
-    DownloadStatus[DownloadStatus["DOWNLOADED"] = 0] = "DOWNLOADED";
-    DownloadStatus[DownloadStatus["ALREADY_EXISTING"] = 1] = "ALREADY_EXISTING";
-    DownloadStatus[DownloadStatus["FAILED"] = 2] = "FAILED";
-})(DownloadStatus || (DownloadStatus = {}));
-const bot = new TelegramBot(TELEGRAM_BOT.BOT_TOKEN);
+import PriorityWorkerQueue from "./core/PriorityWorkerQueue.js";
+import TelegramWorker from "./telegram/TelegramWorker.js";
+import { TelegramTask } from "./telegram/TelegramTask.js";
+const DownloadQueue = (PriorityWorkerQueue);
+RESOLVERS.forEach(res => console.log(res, res.getPriority()));
+TELEGRAM_CLIENTS.forEach(async (client) => await client.connect());
+let tgWorkers = TELEGRAM_CLIENTS.map((client) => new TelegramWorker(client, RESOLVERS));
+let downloadQueue = new DownloadQueue(tgWorkers);
+const bot = new TelegramBot(TELEGRAM_BOT.TELEGRAM_BOT_TOKEN);
 const db = new Database(DATABASE.DB_PATH);
-let stringSession = new StringSession(TELEGRAM_CLIENT.TELEGRAM_LOGIN_TOKEN);
-const client = new TelegramClient(stringSession, parseInt(TELEGRAM_CLIENT.TELEGRAM_API_ID, 10), TELEGRAM_CLIENT.TELEGRAM_API_HASH, { connectionRetries: 5 });
-await client.connect();
 SpotifyUser.setDatabase(db);
-DownloadResolver.setClient(client);
 bot.onText(/\/start/, async (msg) => {
     try {
         let user = await SpotifyUser.get(msg.chat.id.toString(), bot);
@@ -53,64 +49,52 @@ bot.on("callback_query", async (query) => {
         tracks = await user.getSavedTracks();
     else
         tracks = await user.getPlaylistTracks(playlistName);
-    for (const resolver of RESOLVERS)
-        resolver.startSession();
-    for (let song of tracks) {
-        if (song.track == null)
+    let count = 0;
+    for (const song of tracks) {
+        if (song.track == null) {
+            count++;
             continue;
+        }
         if (await db.getSong(song.track.id)) {
             console.log("Skipping (already downloaded): " + song.track.name);
+            count++;
             continue;
         }
-        let response = DownloadStatus.FAILED;
-        let file;
-        // Download song
-        for (const resolver of RESOLVERS) {
-            try {
-                let filename = await resolver.downloadSong(song.track.external_urls.spotify);
-                // db.insertSong({ songId: song.track!.id, title: song.track!.name, filename: filename })
-                response = DownloadStatus.DOWNLOADED;
-                file = filename;
-            }
-            catch (e) {
-                if (e instanceof MediaNotFoundError) {
-                    response = DownloadStatus.FAILED;
-                    console.error(e);
-                }
-                else if (e instanceof TimeoutError) {
-                    console.error(e);
-                    console.log("trying again");
-                    // try again
-                    try {
-                        let filename = await resolver.downloadSong(song.track.external_urls.spotify);
-                        // db.insertSong({ songId: song.track!.id, title: song.track!.name, filename: filename })
-                        response = DownloadStatus.DOWNLOADED;
-                        file = filename;
+        downloadQueue.addTask(new TelegramTask({
+            track: song.track,
+            added_at: new Date(song.added_at),
+            onSuccess: async (result) => {
+                db.insertSong({ songId: song.track.id, title: song.track.name, filename: result.filename });
+                await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await parseSpotifyMetadata(song.track));
+                console.log("✅ Saved:", song.track.name);
+                count++;
+                if (count >= tracks.length)
+                    bot.sendMessage(chatId, `✅ playlist downloaded`);
+            },
+            // try another time
+            onFailure: async () => {
+                downloadQueue.addTask(new TelegramTask({
+                    track: song.track,
+                    added_at: new Date(song.added_at),
+                    onSuccess: async (result) => {
+                        db.insertSong({ songId: song.track.id, title: song.track.name, filename: result.filename });
+                        await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await parseSpotifyMetadata(song.track));
+                        console.log("✅ Saved:", song.track.name);
+                        count++;
+                        if (count >= tracks.length)
+                            bot.sendMessage(chatId, `✅ playlist downloaded`);
+                    },
+                    onFailure: async () => {
+                        bot.sendMessage(chatId, `❌ Failed to download: ${song.track.name}`);
+                        console.log(`❌ Failed to download: ${song.track.name}`);
+                        count++;
+                        if (count >= tracks.length)
+                            bot.sendMessage(chatId, `✅ playlist downloaded`);
                     }
-                    catch (e) {
-                        response = DownloadStatus.FAILED;
-                        console.error(e);
-                    }
-                }
-                else {
-                    console.error("Unexpected error:", e);
-                    response = DownloadStatus.FAILED;
-                }
+                }));
             }
-            if (response != DownloadStatus.FAILED)
-                break;
-        }
-        // Update metadata
-        if (response == DownloadStatus.DOWNLOADED) {
-            updateMetadata(path.join(DownloadResolver.getFolder(), file), await parseSpotifyMetadata(song.track));
-            console.log("✅ Saved:", song.track.name);
-        }
-        else if (response == DownloadStatus.FAILED) {
-            await bot.sendMessage(chatId, `❌ Failed to download: ${song.track.name}`);
-            console.log(`❌ Failed to download: ${song.track.name}`);
-        }
+        }));
     }
-    bot.sendMessage(chatId, `✅ playlist downloaded`);
 });
 app.post("/spotifydl/webhook", function (req, res) {
     bot.processUpdate(req.body);

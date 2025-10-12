@@ -1,19 +1,16 @@
-import DownloadResolver from "./DownloadResolver.js";
+import DownloadResolver from "./download/DownloadResolver.js";
+import { TelegramClient } from "telegram";
 declare const SPOTIFY: {
-    CLIENT_ID: string;
-    CLIENT_SECRET: string;
-    REDIRECT_URI: string;
+    SPOTIFY_CLIENT_ID: string;
+    SPOTIFY_CLIENT_SECRET: string;
+    SPOTIFY_REDIRECT_URI: string;
 };
 declare const TELEGRAM_BOT: {
-    BOT_TOKEN: string;
-};
-declare const TELEGRAM_CLIENT: {
-    TELEGRAM_API_ID: string;
-    TELEGRAM_API_HASH: string;
-    TELEGRAM_LOGIN_TOKEN: string;
+    TELEGRAM_BOT_TOKEN: string;
 };
 declare const DATABASE: {
     DB_PATH: string;
 };
+declare const TELEGRAM_CLIENTS: TelegramClient[];
 declare const RESOLVERS: DownloadResolver[];
-export { SPOTIFY, TELEGRAM_BOT, TELEGRAM_CLIENT, DATABASE, RESOLVERS };
+export { SPOTIFY, TELEGRAM_BOT, TELEGRAM_CLIENTS, DATABASE, RESOLVERS };

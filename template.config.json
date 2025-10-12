@@ -1,11 +1,5 @@
 {
-    "telegram_clients": [
-        {
-            "api_id": "",
-            "api_hash": "",
-            "login_token": ""
-        }
-    ],
+    "telegram_clients": [""],
     "resolvers": [
         {
             "botUsername": "",

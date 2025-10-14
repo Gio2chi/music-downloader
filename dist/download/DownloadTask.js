@@ -1,9 +1,11 @@
 import path from "path";
-import { updateMetadata, parseSpotifyMetadata } from "../metadataManager.js";
+import { updateMetadata } from "../metadataManager.js";
 import DownloadResolver from "./DownloadResolver.js";
+import { Song } from "../models/Song.js";
 export class DownloadTask {
     async onSuccess(result) {
-        await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), (await parseSpotifyMetadata(this.body.track)).tags);
+        let sng = new Song({ spotify_id: this.body.track.id, title: this.body.track.name, filename: result.filename });
+        await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await sng.toTags());
         console.log("✅ Saved:", this.body.track.name);
     }
     ;

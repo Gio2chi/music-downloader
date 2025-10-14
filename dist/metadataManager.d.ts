@@ -1,8 +1,4 @@
-export declare function parseSpotifyMetadata(track: SpotifyApi.TrackObjectFull): Promise<{
-    tags: Tags;
-    error?: string;
-}>;
-type Tags = {
+export type Tags = {
     title?: string;
     artists?: string[];
     album?: string;
@@ -21,4 +17,3 @@ type Tags = {
  * Update metadata for MP3 & FLAC files..
  */
 export declare function updateMetadata(filePath: string, tags: Tags): Promise<void>;
-export {};

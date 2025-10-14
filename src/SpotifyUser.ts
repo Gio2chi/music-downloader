@@ -1,6 +1,5 @@
 import { SPOTIFY } from "./secrets.js"
 import SpotifyWebApi from "spotify-web-api-node"
-import Database, { UserSchema } from "./Database.js";
 import TelegramBot from "node-telegram-bot-api"
 
 type Resolver = (user: SpotifyUser) => void;
@@ -8,6 +7,7 @@ type Rejecter = (err: Error) => void;
 
 import { Strategy as SpotifyStrategy } from "passport-spotify";
 import { app, passport } from "./serverInstance.js"
+import { IUser, User } from "./models/User.js";
 
 // Spotify strategy that returns only tokens
 passport.use(
@@ -39,7 +39,6 @@ app.get('/login', (req, res, next) => {
         session: false
     })(req, res, next);
 });
-
 
 app.get(
     "/callback",
@@ -74,8 +73,8 @@ class SpotifyUser {
     private userChatId: string
     private accessToken: string
     private refreshToken: string
-    private expiresAt: number
-    private email: string
+    private expiresAt: Date
+    private email?: string
 
     private spotifyWebApi = new SpotifyWebApi({
         clientId: SPOTIFY.SPOTIFY_CLIENT_ID,
@@ -83,19 +82,15 @@ class SpotifyUser {
     });
 
     private static pendingLogins = new Map<string, { resolve: Resolver; reject: Rejecter; timer: NodeJS.Timeout }>();
-    private static DATABASE: Database
 
-    private constructor(userId: string, chatId: string, accessToken: string, refreshToken: string, expiresAt: number, email: string) {
+    private constructor(userId: string, chatId: string, accessToken: string, refreshToken: string, expiresAt: Date, email?: string) {
         this.userId = userId;
         this.userChatId = chatId;
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
-        this.email = email;
         this.expiresAt = expiresAt;
-    }
-
-    public static setDatabase(db: Database) {
-        this.DATABASE = db;
+        if(email)
+            this.email = email
     }
 
     public static async get(chatId: string, bot: TelegramBot, timeoutMs = 60000): Promise<SpotifyUser> {
@@ -118,8 +113,8 @@ class SpotifyUser {
             this.pendingLogins.set(chatId, { resolve, reject, timer });
         })
 
-        user.loadTokens()
-        this.DATABASE.insertOrUpdateUser(this.getUserSchema(user));
+        user.loadTokens();
+        (new User(this.getUserSchema(user))).save()
         return user
     }
 
@@ -142,36 +137,32 @@ class SpotifyUser {
 
         let user = (await spotifyApi.getMe()).body
 
-        pending.resolve(new SpotifyUser(user.id, chatId, tokens.accessToken, tokens.refreshToken, tokens.expiresIn, user.email));
+        pending.resolve(new SpotifyUser(user.id, chatId, tokens.accessToken, tokens.refreshToken, new Date(Date.now() + tokens.expiresIn), user.email));
         this.pendingLogins.delete(chatId);
     }
 
-    public save() {
-        SpotifyUser.DATABASE.insertOrUpdateUser(SpotifyUser.getUserSchema(this));
-    }
-
     private static async loadFromDatabase(chatId: string): Promise<SpotifyUser | null> {
-        let user = this.parse(await this.DATABASE.getUser(chatId));
+        let user = this.parse(await User.findOne({telegram_chat_id: chatId}));
         user?.loadTokens();
         let newToken = await user?.spotifyWebApi.refreshAccessToken()
         user?.spotifyWebApi.setAccessToken(newToken!.body.access_token)
         return user;
     }
 
-    private static parse(user: UserSchema | null): SpotifyUser | null {
+    private static parse(user: IUser | null): SpotifyUser | null {
         if (!user)
             return null
 
-        return new SpotifyUser(user.userId, user.chatId, user.accessToken, user.refreshToken, user.expiresAt, user.email)
+        return new SpotifyUser(user.spotify_id, user.telegram_chat_id, user.access_token, user.refresh_token, user.expires_at, user.email)
     }
 
-    private static getUserSchema(user: SpotifyUser): UserSchema {
+    private static getUserSchema(user: SpotifyUser): IUser {
         return {
-            userId: user.userId,
-            chatId: user.userChatId,
-            accessToken: user.accessToken,
-            refreshToken: user.refreshToken,
-            expiresAt: user.expiresAt,
+            spotify_id: user.userId,
+            telegram_chat_id: user.userChatId,
+            access_token: user.accessToken,
+            refresh_token: user.refreshToken,
+            expires_at: user.expiresAt,
             email: user.email
         }
     }

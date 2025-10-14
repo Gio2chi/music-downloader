@@ -9,7 +9,7 @@ declare const TELEGRAM_BOT: {
     TELEGRAM_BOT_TOKEN: string;
 };
 declare const DATABASE: {
-    DB_PATH: string;
+    DB_URL: string;
 };
 declare const TELEGRAM_CLIENTS: TelegramClient[];
 declare const RESOLVERS: DownloadResolver[];

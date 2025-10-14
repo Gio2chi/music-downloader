@@ -1,4 +1,3 @@
-import Database from "./Database.js";
 import TelegramBot from "node-telegram-bot-api";
 declare class SpotifyUser {
     private userId;
@@ -6,19 +5,16 @@ declare class SpotifyUser {
     private accessToken;
     private refreshToken;
     private expiresAt;
-    private email;
+    private email?;
     private spotifyWebApi;
     private static pendingLogins;
-    private static DATABASE;
     private constructor();
-    static setDatabase(db: Database): void;
     static get(chatId: string, bot: TelegramBot, timeoutMs?: number): Promise<SpotifyUser>;
     static resolveLogin(chatId: string, tokens: {
         accessToken: string;
         refreshToken: string;
         expiresIn: number;
     }): Promise<void>;
-    save(): void;
     private static loadFromDatabase;
     private static parse;
     private static getUserSchema;

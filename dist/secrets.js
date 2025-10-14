@@ -8,7 +8,7 @@ const {
 // Spotify
 SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI, 
 // Database
-DB_PATH, 
+DB_URL, 
 // Telegram bot
 TELEGRAM_BOT_TOKEN, 
 // Telegram Client/MTProto
@@ -29,7 +29,10 @@ if (!TELEGRAM_CLIENT_API_ID ||
 }
 const SPOTIFY = { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI };
 const TELEGRAM_BOT = { TELEGRAM_BOT_TOKEN };
-const DATABASE = { DB_PATH: DB_PATH ? DB_PATH : "./sqlite.db" };
+if (!DB_URL) {
+    throw new Error("❌ Missing one or more required mongodb environment variables.");
+}
+const DATABASE = { DB_URL };
 if (!fs.existsSync(DOWNLOAD_PATH ?? "./downloads"))
     fs.mkdirSync(DOWNLOAD_PATH ?? "./downloads");
 DownloadResolver.setFolder(DOWNLOAD_PATH ?? "./downloads");

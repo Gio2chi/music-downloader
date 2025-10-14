@@ -17,13 +17,13 @@
     "file-type": "^21.0.0",
     "input": "^1.0.1",
     "metaflac-js": "^1.0.5",
+    "mongoose": "^8.19.0",
     "music-metadata": "^11.9.0",
     "node-id3": "^0.2.9",
     "node-telegram-bot-api": "^0.63.0",
     "passport": "^0.7.0",
     "passport-spotify": "^2.0.0",
     "spotify-web-api-node": "^5.0.2",
-    "sqlite3": "^5.1.7",
     "telegram": "^2.26.22"
   },
   "devDependencies": {

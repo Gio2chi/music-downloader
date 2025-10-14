@@ -153,6 +153,8 @@ class SpotifyUser {
     private static async loadFromDatabase(chatId: string): Promise<SpotifyUser | null> {
         let user = this.parse(await this.DATABASE.getUser(chatId));
         user?.loadTokens();
+        let newToken = await user?.spotifyWebApi.refreshAccessToken()
+        user?.spotifyWebApi.setAccessToken(newToken!.body.access_token)
         return user;
     }
 

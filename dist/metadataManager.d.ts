@@ -1,4 +1,7 @@
-export declare function parseSpotifyMetadata(track: SpotifyApi.TrackObjectFull): Promise<Tags>;
+export declare function parseSpotifyMetadata(track: SpotifyApi.TrackObjectFull): Promise<{
+    tags: Tags;
+    error?: string;
+}>;
 type Tags = {
     title?: string;
     artists?: string[];

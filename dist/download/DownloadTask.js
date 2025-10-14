@@ -3,7 +3,7 @@ import { updateMetadata, parseSpotifyMetadata } from "../metadataManager.js";
 import DownloadResolver from "./DownloadResolver.js";
 export class DownloadTask {
     async onSuccess(result) {
-        await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await parseSpotifyMetadata(this.body.track));
+        await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), (await parseSpotifyMetadata(this.body.track)).tags);
         console.log("✅ Saved:", this.body.track.name);
     }
     ;

@@ -8,11 +8,22 @@ async function fetchImage(url) {
     return Buffer.from(new Uint8Array(arrayBuffer));
 }
 export async function parseSpotifyMetadata(track) {
-    let cover_url = track.album.images.filter(image => image.height == 640).map(image => image.url).pop();
-    const buffer = await fetchImage(cover_url);
-    const { mime } = (await fileTypeFromBuffer(buffer));
-    if (mime !== 'image/jpeg' && mime !== 'image/png') {
-        throw new Error(`only support image/jpeg and image/png picture temporarily, current import ${mime}`);
+    let err;
+    let cover = undefined;
+    try {
+        let cover_url = track.album.images.filter(image => image.height == 640).map(image => image.url).pop();
+        if (cover_url == undefined)
+            throw new Error("no cover found");
+        let buffer = await fetchImage(cover_url);
+        let mime = (await fileTypeFromBuffer(buffer)).mime;
+        if (mime !== 'image/jpeg' && mime !== 'image/png') {
+            throw new Error(`only support image/jpeg and image/png picture temporarily, current import ${mime}`);
+        }
+        cover = { buffer, mime };
+    }
+    catch (e) {
+        if (e instanceof Error)
+            err = e.message;
     }
     let parsed = {
         spotifyId: track.id,
@@ -23,13 +34,10 @@ export async function parseSpotifyMetadata(track) {
         disc: track.disc_number,
         trackNumber: track.track_number.toString(),
         isrc: track.external_ids.isrc,
-        cover: {
-            buffer: buffer,
-            mime: mime
-        },
+        cover,
         spotifyUrl: track.external_urls.spotify,
     };
-    return parsed;
+    return { tags: parsed, error: err };
 }
 /**
  * Update metadata for MP3 & FLAC files..

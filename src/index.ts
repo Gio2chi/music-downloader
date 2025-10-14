@@ -85,7 +85,7 @@ bot.on("callback_query", async (query: Record<string, any>) => {
             added_at: new Date(song.added_at),
             onSuccess: async (result: DownloadTaskResult) => {
                 db.insertSong({ songId: song.track!.id, title: song.track!.name, filename: result.filename })
-                await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await parseSpotifyMetadata(song.track!))
+                await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), (await parseSpotifyMetadata(song.track!)).tags)
                 console.log("✅ Saved:", song.track!.name);
                 count++;
                 if (count >= tracks.length)
@@ -98,7 +98,7 @@ bot.on("callback_query", async (query: Record<string, any>) => {
                     added_at: new Date(song.added_at),
                     onSuccess: async (result: DownloadTaskResult) => {
                         db.insertSong({ songId: song.track!.id, title: song.track!.name, filename: result.filename })
-                        await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await parseSpotifyMetadata(song.track!))
+                        await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), (await parseSpotifyMetadata(song.track!)).tags)
                         console.log("✅ Saved:", song.track!.name);
                         count++;
                         if (count >= tracks.length)

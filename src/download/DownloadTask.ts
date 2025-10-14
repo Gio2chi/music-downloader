@@ -18,7 +18,7 @@ export class DownloadTask implements TaskInterface<DownloadTaskBody, DownloadTas
     body: DownloadTaskBody;
 
     async onSuccess(result: DownloadTaskResult): Promise<void> {
-        await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await parseSpotifyMetadata(this.body.track))
+        await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), (await parseSpotifyMetadata(this.body.track)).tags)
         console.log("✅ Saved:", this.body.track.name);
     };
     async onFailure(): Promise<void> {

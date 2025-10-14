@@ -10,7 +10,6 @@ import PriorityWorkerQueue from "./core/PriorityWorkerQueue.js";
 import TelegramWorker from "./telegram/TelegramWorker.js";
 import { TelegramTask } from "./telegram/TelegramTask.js";
 const DownloadQueue = (PriorityWorkerQueue);
-RESOLVERS.forEach(res => console.log(res, res.getPriority()));
 TELEGRAM_CLIENTS.forEach(async (client) => await client.connect());
 let tgWorkers = TELEGRAM_CLIENTS.map((client) => new TelegramWorker(client, RESOLVERS));
 let downloadQueue = new DownloadQueue(tgWorkers);
@@ -65,7 +64,7 @@ bot.on("callback_query", async (query) => {
             added_at: new Date(song.added_at),
             onSuccess: async (result) => {
                 db.insertSong({ songId: song.track.id, title: song.track.name, filename: result.filename });
-                await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await parseSpotifyMetadata(song.track));
+                await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), (await parseSpotifyMetadata(song.track)).tags);
                 console.log("✅ Saved:", song.track.name);
                 count++;
                 if (count >= tracks.length)
@@ -78,7 +77,7 @@ bot.on("callback_query", async (query) => {
                     added_at: new Date(song.added_at),
                     onSuccess: async (result) => {
                         db.insertSong({ songId: song.track.id, title: song.track.name, filename: result.filename });
-                        await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await parseSpotifyMetadata(song.track));
+                        await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), (await parseSpotifyMetadata(song.track)).tags);
                         console.log("✅ Saved:", song.track.name);
                         count++;
                         if (count >= tracks.length)

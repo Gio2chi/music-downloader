@@ -1,7 +1,7 @@
 FROM node:20-bullseye
 
 RUN apt-get update && apt-get install -y \
-    python3 python3-dev build-essential sqlite3 libsqlite3-dev \
+    python3 python3-dev build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Use production node environment by default.

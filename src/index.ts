@@ -105,7 +105,9 @@ bot.on("callback_query", async (query: Record<string, any>) => {
             added_at: new Date(song.added_at),
             onSuccess: async (result: DownloadTaskResult) => {
                 let sng = Song.parse(song.track!)
+                sng.filename = result.filename
                 await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await sng.toTags())
+                sng.save()
                 console.log("✅ Saved:", song.track!.name);
                 count++;
                 if (count >= tracks.length)
@@ -118,7 +120,9 @@ bot.on("callback_query", async (query: Record<string, any>) => {
                     added_at: new Date(song.added_at),
                     onSuccess: async (result: DownloadTaskResult) => {
                         let sng = Song.parse(song.track!)
+                        sng.filename = result.filename
                         await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await sng.toTags())
+                        sng.save()
                         console.log("✅ Saved:", song.track!.name);
                         count++;
                         if (count >= tracks.length)

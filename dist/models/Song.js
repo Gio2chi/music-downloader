@@ -31,11 +31,22 @@ export const SongSchema = new Schema({
 }, {
     methods: {
         async toTags() {
-            let cover_url = this.album.cover_url;
-            const buffer = await fetchImage(cover_url);
-            const { mime } = (await fileTypeFromBuffer(buffer));
-            if (mime !== 'image/jpeg' && mime !== 'image/png') {
-                throw new Error(`only support image/jpeg and image/png picture temporarily, current import ${mime}`);
+            let cover = undefined;
+            let err = undefined;
+            try {
+                let cover_url = this.album.cover_url;
+                if (cover_url == undefined)
+                    throw new Error("no cover found");
+                let buffer = await fetchImage(cover_url);
+                let mime = (await fileTypeFromBuffer(buffer)).mime;
+                if (mime !== 'image/jpeg' && mime !== 'image/png') {
+                    throw new Error(`only support image/jpeg and image/png picture temporarily, current import ${mime}`);
+                }
+                cover = { buffer, mime };
+            }
+            catch (e) {
+                if (e instanceof Error)
+                    err = e.message;
             }
             return {
                 spotifyId: this.spotify_id,
@@ -45,10 +56,7 @@ export const SongSchema = new Schema({
                 year: this.album.released_at.toString(),
                 trackNumber: this.track_number.toString(),
                 isrc: this.isrc,
-                cover: {
-                    buffer: buffer,
-                    mime: mime
-                },
+                cover,
                 spotifyUrl: "https://open.spotify.com/track/" + this.spotify_id,
             };
         }

@@ -25,9 +25,9 @@ export class DownloadTask implements TaskInterface<DownloadTaskBody, DownloadTas
     };
     async onFailure(): Promise<void> {
         console.log(`❌ Failed to download: ${this.body.track.name}`)
-     };
+    };
 
-    constructor(body: DownloadTaskBody, onSuccess = async(result: DownloadTaskResult): Promise<void> => {}, onFailure = async(): Promise<void> => {}) {
+    constructor(body: DownloadTaskBody, onSuccess = async (result: DownloadTaskResult): Promise<void> => { }, onFailure = async (): Promise<void> => { }) {
         this.body = body
         this.onSuccess = onSuccess
         this.onFailure = onFailure

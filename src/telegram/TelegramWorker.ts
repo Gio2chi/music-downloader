@@ -22,7 +22,7 @@ export default class TelegramWorker implements WorkerInterface<TelegramTaskBody,
     }
 
     async run(task: TelegramTask): Promise<void> {
-        let body: DownloadTaskBody = {...task.body, client: this.client}
+        let body: DownloadTaskBody = { ...task.body, client: this.client }
         this.songQ.addTask(new DownloadTask(body, task.body.onSuccess, task.body.onFailure))
     }
 }

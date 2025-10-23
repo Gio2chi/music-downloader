@@ -22,8 +22,6 @@ import { DownloadTaskResult } from "./download/DownloadTask.js";
 const DownloadQueue = PriorityWorkerQueue<TelegramTaskBody, void, TelegramWorker>;
 type DownloadQueue = InstanceType<typeof DownloadQueue>;
 
-TELEGRAM_CLIENTS.forEach(async (client: TelegramClient) => await client.connect())
-
 let tgWorkers: TelegramWorker[] = TELEGRAM_CLIENTS.map((client: TelegramClient) => new TelegramWorker(client, RESOLVERS))
 let downloadQueue = new DownloadQueue(tgWorkers)
 
@@ -79,8 +77,6 @@ bot.on("callback_query", async (query: Record<string, any>) => {
         usr!.save()
     }
 
-
-
     let tracks: SpotifyApi.SavedTrackObject[] | SpotifyApi.PlaylistTrackObject[]
     if (playlistSpotifyId == "saved")
         tracks = await user.getSavedTracks()
@@ -94,8 +90,11 @@ bot.on("callback_query", async (query: Record<string, any>) => {
             continue
         }
 
-        if (await Song.findOne({ spotify_id: song.track.id })) {
+        if (tmp = await Song.findOne({ spotify_id: song.track.id })) {
             console.log("Skipping (already downloaded): " + song.track.name)
+            let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: tmp.id })
+            if (!record)
+                (new PlaylistSong({ playlistId: playlist.id, songId: tmp.id })).save()
             count++;
             continue;
         }
@@ -108,6 +107,11 @@ bot.on("callback_query", async (query: Record<string, any>) => {
                 sng.filename = result.filename
                 await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await sng.toTags())
                 sng.save()
+
+                let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id })
+                if (!record)
+                    (new PlaylistSong({ playlistId: playlist.id, songId: sng.id })).save()
+
                 console.log("✅ Saved:", song.track!.name);
                 count++;
                 if (count >= tracks.length)
@@ -123,6 +127,11 @@ bot.on("callback_query", async (query: Record<string, any>) => {
                         sng.filename = result.filename
                         await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await sng.toTags())
                         sng.save()
+
+                        let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id })
+                        if (!record)
+                            (new PlaylistSong({ playlistId: playlist.id, songId: sng.id })).save()
+
                         console.log("✅ Saved:", song.track!.name);
                         count++;
                         if (count >= tracks.length)

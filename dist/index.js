@@ -9,11 +9,11 @@ import { updateMetadata } from "./metadataManager.js";
 import { Song } from "./models/Song.js";
 import { Playlist } from "./models/Playlist.js";
 import { User } from "./models/User.js";
+import { PlaylistSong } from "./models/PlaylistSong.js";
 import PriorityWorkerQueue from "./core/PriorityWorkerQueue.js";
 import TelegramWorker from "./telegram/TelegramWorker.js";
 import { TelegramTask } from "./telegram/TelegramTask.js";
 const DownloadQueue = (PriorityWorkerQueue);
-TELEGRAM_CLIENTS.forEach(async (client) => await client.connect());
 let tgWorkers = TELEGRAM_CLIENTS.map((client) => new TelegramWorker(client, RESOLVERS));
 let downloadQueue = new DownloadQueue(tgWorkers);
 const bot = new TelegramBot(TELEGRAM_BOT.TELEGRAM_BOT_TOKEN);
@@ -68,8 +68,11 @@ bot.on("callback_query", async (query) => {
             count++;
             continue;
         }
-        if (await Song.findOne({ spotify_id: song.track.id })) {
+        if (tmp = await Song.findOne({ spotify_id: song.track.id })) {
             console.log("Skipping (already downloaded): " + song.track.name);
+            let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: tmp.id });
+            if (!record)
+                (new PlaylistSong({ playlistId: playlist.id, songId: tmp.id })).save();
             count++;
             continue;
         }
@@ -81,6 +84,9 @@ bot.on("callback_query", async (query) => {
                 sng.filename = result.filename;
                 await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await sng.toTags());
                 sng.save();
+                let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id });
+                if (!record)
+                    (new PlaylistSong({ playlistId: playlist.id, songId: sng.id })).save();
                 console.log("✅ Saved:", song.track.name);
                 count++;
                 if (count >= tracks.length)
@@ -96,6 +102,9 @@ bot.on("callback_query", async (query) => {
                         sng.filename = result.filename;
                         await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await sng.toTags());
                         sng.save();
+                        let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id });
+                        if (!record)
+                            (new PlaylistSong({ playlistId: playlist.id, songId: sng.id })).save();
                         console.log("✅ Saved:", song.track.name);
                         count++;
                         if (count >= tracks.length)

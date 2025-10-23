@@ -13,6 +13,8 @@ declare class DownloadResolver {
     private time;
     private count;
     private priority;
+    private connecting;
+    private timer;
     constructor(botUsername: string, config?: {
         msgPerDownload?: number;
         songsPerMinute?: number;

@@ -16,6 +16,8 @@ class DownloadResolver {
     private count = 0;
 
     private priority: number
+    private connecting: any;
+    private timer: NodeJS.Timeout | undefined;
 
     constructor(
         botUsername: string,
@@ -51,8 +53,7 @@ class DownloadResolver {
         });
     }
 
-    public getPriority()
-    {
+    public getPriority() {
         return this.priority
     }
 
@@ -65,6 +66,13 @@ class DownloadResolver {
     }
 
     public async downloadSong(client: TelegramClient, url: string, filenameWithoutExtension = DownloadResolver.UUID()): Promise<string> {
+        await client.connect()
+        if (this.timer) clearTimeout(this.timer);
+        this.timer = setTimeout(async () => {
+            if(!client.connected)
+                await client.disconnect();
+        }, 5 * 60 * 1000);
+
         if (this.count >= this.songsPerMinute) {
             let waitTime = 60000 - (Date.now() - this.time);
             if (waitTime > 0) {
@@ -139,9 +147,11 @@ class DownloadResolver {
 
                 if (!found) {
                     reject(new MediaNotFoundError("No media found in the message."));
+                    return
                 }
             }
             reject(new Error("Unexpected error while downloading."));
+            return
         })
 
         return Promise.race([downloadPromise, timeoutPromise])

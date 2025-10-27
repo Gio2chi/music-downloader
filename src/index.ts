@@ -266,6 +266,13 @@ async function downloadPlaylist(chatId: string, args: CommandArgs[MENUS.DOWNLOAD
             continue;
         }
 
+        if (song.track.external_ids.isrc == undefined)
+        {
+            count++
+            bot.sendMessage(chatId, `❌ Failed to download: ${song.track.name} ${song.track.external_urls.spotify}\n metadata not available.`)
+            continue;
+        }
+
         downloadQueue.addTask(new TelegramTask({
             track: song.track,
             added_at: new Date(song.added_at),

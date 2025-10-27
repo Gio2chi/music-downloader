@@ -93,4 +93,4 @@ By using this software, you agree that the author assumes **no liability** for m
  - It is the user’s responsibility to ensure compliance with copyright laws in their jurisdiction.
 
 ## 📜 License
-MIT License – see the LICENSE file for details.
+MIT License – see the [LICENSE](LICENSE) file for details.

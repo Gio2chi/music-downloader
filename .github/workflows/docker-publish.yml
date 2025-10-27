@@ -35,5 +35,5 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/myapp:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/myapp:${{ steps.vars.outputs.VERSION }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/music-downloader:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/music-downloader:${{ steps.vars.outputs.VERSION }}

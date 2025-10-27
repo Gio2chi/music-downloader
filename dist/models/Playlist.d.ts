@@ -2,6 +2,8 @@ import { Schema } from "mongoose";
 export interface IPlaylist {
     owner: Schema.Types.ObjectId;
     name: string;
+    spotifyId: string;
+    downloaded: boolean;
 }
 export declare const PlaylistSchema: Schema<IPlaylist, import("mongoose").Model<IPlaylist, any, any, any, import("mongoose").Document<unknown, any, IPlaylist, any, {}> & IPlaylist & {
     _id: import("mongoose").Types.ObjectId;

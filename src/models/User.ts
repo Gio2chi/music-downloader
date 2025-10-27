@@ -6,7 +6,7 @@ export interface IUser {
     access_token: string,
     refresh_token: string,
     expires_at: Date,
-    playlists?: Schema.Types.ObjectId[]
+    playlists: Schema.Types.ObjectId[]
     email?: string
 }
 export const UserSchema = new Schema<IUser>({

@@ -25,18 +25,19 @@ var MENUS;
     MENUS["DOWNLOAD_PLAYLIST"] = "DP";
     MENUS["EXPORT_PLAYLIST"] = "EP";
 })(MENUS || (MENUS = {}));
-const SEP = '|'; // you can pick any separator unlikely to appear in your data
+const SEP = '|';
+// Needs to make a string that can fit in 64 bytes
 function CommandStringify(cmd) {
     switch (cmd.command) {
         case MENUS.DOWNLOAD_PLAYLIST:
             {
                 let args = cmd.args;
-                return `${MENUS.DOWNLOAD_PLAYLIST}${SEP}${args.playlistId}${SEP}${args.playlistName}`;
+                return `${MENUS.DOWNLOAD_PLAYLIST}${SEP}${args.playlistId}`;
             }
         case MENUS.EXPORT_PLAYLIST:
             {
                 let args = cmd.args;
-                return `${MENUS.EXPORT_PLAYLIST}${SEP}${args.playlistName}`;
+                return `${MENUS.EXPORT_PLAYLIST}${SEP}${args.playlistId}`;
             }
         case MENUS.LOGIN:
             return MENUS.LOGIN;
@@ -51,10 +52,10 @@ function CommandParse(str) {
         case MENUS.DOWNLOAD_PLAYLIST:
             return {
                 command,
-                args: { playlistId: parts[1], playlistName: parts[2] }
+                args: { playlistId: parts[1] }
             };
         case MENUS.EXPORT_PLAYLIST:
-            return { command, args: { playlistName: parts[1] } };
+            return { command, args: { playlistId: parts[1] } };
         case MENUS.LOGIN:
             return { command, args: {} };
         case MENUS.OPTIONS:
@@ -65,24 +66,55 @@ function CommandParse(str) {
 }
 bot.onText(/\/start/, async (msg) => {
     try {
-        let user = await SpotifyUser.get(msg.chat.id.toString(), bot);
+        const chatId = msg.chat.id.toString();
+        let user = await SpotifyUser.get(chatId, bot);
         const playlists = await user.getPlaylists();
         let menu = [[{
                     text: "🎵 Saved Music",
                     callback_data: CommandStringify({
                         command: MENUS.DOWNLOAD_PLAYLIST,
-                        args: { playlistId: "saved", playlistName: "Saved Tracks" }
+                        args: { playlistId: "saved" }
                     })
                 }]];
-        playlists.forEach(playlist => {
+        let userRecord = (await User.findOne({ telegram_chat_id: chatId }));
+        let playlistData = {
+            spotifyId: "saved",
+            name: "🎵 Saved Music",
+            downloaded: false,
+            owner: userRecord._id
+        };
+        let tmp;
+        let playlist;
+        if ((tmp = await Playlist.findOne(playlistData)))
+            playlist = tmp;
+        else {
+            playlist = new Playlist(playlistData);
+            playlist.save();
+            userRecord.playlists.push(playlist._id);
+        }
+        for (let p of playlists) {
             menu.push([{
-                    text: playlist.name,
+                    text: p.name,
                     callback_data: CommandStringify({
                         command: MENUS.DOWNLOAD_PLAYLIST,
-                        args: { playlistId: playlist.id, playlistName: playlist.name }
+                        args: { playlistId: p.id }
                     })
                 }]);
-        });
+            playlistData = {
+                spotifyId: p.id,
+                name: p.name,
+                downloaded: false,
+                owner: userRecord._id
+            };
+            if ((tmp = await Playlist.findOne(playlistData)))
+                playlist = tmp;
+            else {
+                playlist = new Playlist(playlistData);
+                playlist.save();
+                userRecord.playlists.push(playlist._id);
+            }
+        }
+        userRecord.save();
         bot.sendMessage(user.getChatId(), "Select which playlist you want to download:", {
             reply_markup: {
                 inline_keyboard: menu,
@@ -96,25 +128,20 @@ bot.onText(/\/start/, async (msg) => {
 // export a playlist as M3U
 bot.onText(/\/export/, async (msg) => {
     try {
-        let user = await SpotifyUser.get(msg.chat.id.toString(), bot);
-        const playlists = await user.getPlaylists();
-        let menu = [[{
-                    text: "🎵 Saved Music",
-                    callback_data: CommandStringify({
-                        command: MENUS.EXPORT_PLAYLIST,
-                        args: { playlistName: "Saved Tracks" }
-                    })
-                }]];
-        playlists.forEach(playlist => {
+        let user = await User.findOne({ telegram_chat_id: msg.chat.id })
+            .populate("playlists")
+            .exec();
+        let menu = [];
+        user.playlists.filter(p => p.downloaded).forEach(playlist => {
             menu.push([{
                     text: playlist.name,
                     callback_data: CommandStringify({
                         command: MENUS.EXPORT_PLAYLIST,
-                        args: { playlistName: playlist.name }
+                        args: { playlistId: playlist.spotifyId }
                     })
                 }]);
         });
-        bot.sendMessage(user.getChatId(), "Select which playlist you want to export:", {
+        bot.sendMessage(user.telegram_chat_id, "Select which playlist you want to export:", {
             reply_markup: {
                 inline_keyboard: menu,
             },
@@ -142,11 +169,11 @@ bot.on("callback_query", async (query) => {
 });
 async function exportPlaylist(chatId, args) {
     const user = await User.findOne({ telegram_chat_id: chatId });
-    const playlist = await Playlist.findOne({ name: args.playlistName, owner: user._id });
+    const playlist = await Playlist.findOne({ spotifyId: args.playlistId, owner: user._id });
     const playlistSongs = await PlaylistSong.find({ playlistId: playlist?._id })
         .populate("songId")
         .exec();
-    let rawData = "#EXTM3U\n#PLAYLIST:" + args.playlistName + "\n";
+    let rawData = "#EXTM3U\n#PLAYLIST:" + playlist.name + "\n";
     for (let song of playlistSongs.sort((a, b) => b.added_at.getTime() - a.added_at.getTime())) {
         if (!song.songId) {
             song.deleteOne();
@@ -156,24 +183,16 @@ async function exportPlaylist(chatId, args) {
     }
     const data = Buffer.from(rawData, 'utf-8');
     bot.sendDocument(chatId, data, {}, {
-        filename: args.playlistName + "." + chatId + ".m3u",
+        filename: playlist.name + "." + chatId + ".m3u",
         contentType: 'text/plain'
     });
 }
 async function downloadPlaylist(chatId, args) {
     let user = await SpotifyUser.get(chatId, bot);
-    let playlistData = { name: args.playlistName, owner: (await User.findOne({ telegram_chat_id: chatId }))?._id };
-    let tmp;
-    let playlist;
-    if ((tmp = await Playlist.findOne(playlistData)))
-        playlist = tmp;
-    else {
-        playlist = new Playlist(playlistData);
-        playlist.save();
-        let usr = await User.findById(playlist.owner);
-        usr.playlists.push(playlist._id);
-        usr.save();
-    }
+    let playlistData = { spotifyId: args.playlistId, owner: (await User.findOne({ telegram_chat_id: chatId }))?._id };
+    let playlist = (await Playlist.findOne(playlistData));
+    playlist.downloaded = true;
+    playlist.save();
     let tracks;
     if (args.playlistId == "saved")
         tracks = await user.getSavedTracks();
@@ -185,6 +204,7 @@ async function downloadPlaylist(chatId, args) {
             count++;
             continue;
         }
+        let tmp;
         if (tmp = await Song.findOne({ spotify_id: song.track.id })) {
             console.log("Skipping (already downloaded): " + song.track.name);
             let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: tmp.id });

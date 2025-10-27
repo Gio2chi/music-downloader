@@ -112,7 +112,8 @@ class SpotifyUser {
             access_token: user.accessToken,
             refresh_token: user.refreshToken,
             expires_at: user.expiresAt,
-            email: user.email
+            email: user.email,
+            playlists: []
         };
     }
     loadTokens() {

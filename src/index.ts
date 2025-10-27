@@ -10,7 +10,7 @@ import DownloadResolver from "./download/DownloadResolver.js";
 import { updateMetadata } from "./metadataManager.js"
 import { ISong, Song } from "./models/Song.js";
 import { IPlaylist, Playlist } from "./models/Playlist.js";
-import { User } from "./models/User.js";
+import { IUser, User } from "./models/User.js";
 import { IPlaylistSong, PlaylistSong } from "./models/PlaylistSong.js";
 
 import PriorityWorkerQueue from "./core/PriorityWorkerQueue.js";
@@ -39,8 +39,8 @@ enum MENUS {
 type CommandArgs = {
     [MENUS.OPTIONS]: {};
     [MENUS.LOGIN]: {};
-    [MENUS.DOWNLOAD_PLAYLIST]: { playlistId: string, playlistName: string };
-    [MENUS.EXPORT_PLAYLIST]: { playlistName: string };
+    [MENUS.DOWNLOAD_PLAYLIST]: { playlistId: string };
+    [MENUS.EXPORT_PLAYLIST]: { playlistId: string };
 }
 
 type Command<C extends MENUS = MENUS> = {
@@ -51,18 +51,17 @@ type Command<C extends MENUS = MENUS> = {
 const SEP = '|'
 
 // Needs to make a string that can fit in 64 bytes
-// if causes problems then move to send only the playlist id and store both the name and the spotify id in the database
 function CommandStringify<C extends MENUS>(cmd: Command<C>): string {
     switch (cmd.command) {
         case MENUS.DOWNLOAD_PLAYLIST:
             {
                 let args = cmd.args as CommandArgs[MENUS.DOWNLOAD_PLAYLIST]
-                return `${MENUS.DOWNLOAD_PLAYLIST}${SEP}${args.playlistId}${SEP}${args.playlistName}`
+                return `${MENUS.DOWNLOAD_PLAYLIST}${SEP}${args.playlistId}`
             }
         case MENUS.EXPORT_PLAYLIST:
             {
                 let args = cmd.args as CommandArgs[MENUS.EXPORT_PLAYLIST]
-                return `${MENUS.EXPORT_PLAYLIST}${SEP}${args.playlistName}`
+                return `${MENUS.EXPORT_PLAYLIST}${SEP}${args.playlistId}`
             }
         case MENUS.LOGIN:
             return MENUS.LOGIN;
@@ -79,10 +78,10 @@ function CommandParse(str: string): Command {
         case MENUS.DOWNLOAD_PLAYLIST:
             return {
                 command,
-                args: { playlistId: parts[1], playlistName: parts[2] }
+                args: { playlistId: parts[1] }
             };
         case MENUS.EXPORT_PLAYLIST:
-            return { command, args: { playlistName: parts[1] } };
+            return { command, args: { playlistId: parts[1] } };
         case MENUS.LOGIN:
             return { command, args: {} };
         case MENUS.OPTIONS:
@@ -94,26 +93,64 @@ function CommandParse(str: string): Command {
 
 bot.onText(/\/start/, async (msg: TelegramBot.Message) => {
     try {
-        let user = await SpotifyUser.get(msg.chat.id.toString(), bot)
+        const chatId = msg.chat.id.toString()
+        let user = await SpotifyUser.get(chatId, bot)
 
         const playlists = await user.getPlaylists()
         let menu = [[{
             text: "🎵 Saved Music",
             callback_data: CommandStringify({
                 command: MENUS.DOWNLOAD_PLAYLIST,
-                args: { playlistId: "saved", playlistName: "Saved Tracks" }
+                args: { playlistId: "saved" }
             })
         }]]
 
-        playlists.forEach(playlist => {
+        let userRecord = (await User.findOne({ telegram_chat_id: chatId }))!;
+        let playlistData = {
+            spotifyId: "saved",
+            name: "🎵 Saved Music",
+            downloaded: false,
+            owner: userRecord._id
+        }
+
+        let tmp: any
+        let playlist: HydratedDocument<IPlaylist>
+        if ((tmp = await Playlist.findOne(playlistData)))
+            playlist = tmp
+        else {
+            playlist = new Playlist( playlistData )
+            playlist.save()
+
+            userRecord.playlists!.push(playlist._id as unknown as mongoose.Schema.Types.ObjectId)
+        }
+
+        for(let p of playlists) {
             menu.push([{
-                text: playlist.name,
+                text: p.name,
                 callback_data: CommandStringify({
                     command: MENUS.DOWNLOAD_PLAYLIST,
-                    args: { playlistId: playlist.id, playlistName: playlist.name }
+                    args: { playlistId: p.id }
                 })
             }])
-        })
+
+            playlistData = {
+                spotifyId: p.id,
+                name: p.name,
+                downloaded: false,
+                owner: userRecord._id
+            }
+
+            if ((tmp = await Playlist.findOne(playlistData)))
+                playlist = tmp
+            else {
+                playlist = new Playlist(playlistData)
+                playlist.save()
+
+                userRecord.playlists!.push(playlist._id as unknown as mongoose.Schema.Types.ObjectId)
+            }
+        }
+
+        userRecord.save()
 
         bot.sendMessage(user.getChatId(), "Select which playlist you want to download:", {
             reply_markup: {
@@ -128,28 +165,22 @@ bot.onText(/\/start/, async (msg: TelegramBot.Message) => {
 // export a playlist as M3U
 bot.onText(/\/export/, async (msg: TelegramBot.Message) => {
     try {
-        let user = await SpotifyUser.get(msg.chat.id.toString(), bot)
+        let user = await User.findOne({ telegram_chat_id: msg.chat.id })
+            .populate("playlists")
+            .exec() as unknown as Omit<HydratedDocument<IUser>, 'playlists'> & Record<'playlists', HydratedDocument<IPlaylist>[]>
 
-        const playlists = await user.getPlaylists()
-        let menu = [[{
-            text: "🎵 Saved Music",
-            callback_data: CommandStringify({
-                command: MENUS.EXPORT_PLAYLIST,
-                args: { playlistName: "Saved Tracks" }
-            })
-        }]]
-
-        playlists.forEach(playlist => {
+        let menu: TelegramBot.InlineKeyboardButton[][] = []
+        user!.playlists.filter(p => p.downloaded).forEach(playlist => {
             menu.push([{
                 text: playlist.name,
                 callback_data: CommandStringify({
                     command: MENUS.EXPORT_PLAYLIST,
-                    args: { playlistName: playlist.name }
+                    args: { playlistId: playlist.spotifyId }
                 })
             }])
         })
 
-        bot.sendMessage(user.getChatId(), "Select which playlist you want to export:", {
+        bot.sendMessage(user!.telegram_chat_id, "Select which playlist you want to export:", {
             reply_markup: {
                 inline_keyboard: menu,
             },
@@ -176,16 +207,16 @@ bot.on("callback_query", async (query: CallbackQuery) => {
     }
 })
 
-type Populated<T, K extends keyof T, P> = Omit<HydratedDocument<T>, K> & Record<K, HydratedDocument<P> | null>;
-
 async function exportPlaylist(chatId: string, args: CommandArgs[MENUS.EXPORT_PLAYLIST]) {
+    type Populated<T, K extends keyof T, P> = Omit<HydratedDocument<T>, K> & Record<K, HydratedDocument<P> | null>;
+
     const user = await User.findOne({ telegram_chat_id: chatId })
-    const playlist = await Playlist.findOne({ name: args.playlistName, owner: user!._id })
+    const playlist = await Playlist.findOne({ spotifyId: args.playlistId, owner: user!._id })
     const playlistSongs = await PlaylistSong.find({ playlistId: playlist?._id })
         .populate("songId")
         .exec() as unknown as Populated<IPlaylistSong, 'songId', ISong>[];
 
-    let rawData = "#EXTM3U\n#PLAYLIST:" + args.playlistName + "\n"
+    let rawData = "#EXTM3U\n#PLAYLIST:" + playlist!.name + "\n"
     for (let song of playlistSongs.sort((a, b) => b.added_at.getTime() - a.added_at.getTime())) {
         if (!song.songId) {
             song.deleteOne()
@@ -198,7 +229,7 @@ async function exportPlaylist(chatId: string, args: CommandArgs[MENUS.EXPORT_PLA
     const data = Buffer.from(rawData, 'utf-8');
 
     bot.sendDocument(chatId, data, {}, {
-        filename: args.playlistName + "." + chatId + ".m3u",
+        filename: playlist!.name + "." + chatId + ".m3u",
         contentType: 'text/plain'
     });
 }
@@ -206,19 +237,11 @@ async function exportPlaylist(chatId: string, args: CommandArgs[MENUS.EXPORT_PLA
 async function downloadPlaylist(chatId: string, args: CommandArgs[MENUS.DOWNLOAD_PLAYLIST]) {
     let user = await SpotifyUser.get(chatId, bot)
 
-    let playlistData: any = { name: args.playlistName, owner: (await User.findOne({ telegram_chat_id: chatId }))?._id }
-    let tmp: any
-    let playlist: HydratedDocument<IPlaylist>
-    if ((tmp = await Playlist.findOne(playlistData)))
-        playlist = tmp
-    else {
-        playlist = new Playlist(playlistData)
-        playlist.save()
+    let playlistData: any = { spotifyId: args.playlistId, owner: (await User.findOne({ telegram_chat_id: chatId }))?._id }
+    let playlist = (await Playlist.findOne(playlistData))! 
 
-        let usr = await User.findById(playlist.owner)
-        usr!.playlists!.push(playlist._id as unknown as mongoose.Schema.Types.ObjectId)
-        usr!.save()
-    }
+    playlist.downloaded = true
+    playlist.save()
 
     let tracks: SpotifyApi.SavedTrackObject[] | SpotifyApi.PlaylistTrackObject[]
     if (args.playlistId == "saved")
@@ -233,6 +256,7 @@ async function downloadPlaylist(chatId: string, args: CommandArgs[MENUS.DOWNLOAD
             continue
         }
 
+        let tmp: any
         if (tmp = await Song.findOne({ spotify_id: song.track.id })) {
             console.log("Skipping (already downloaded): " + song.track.name)
             let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: tmp.id })

@@ -18,34 +18,151 @@ let tgWorkers = TELEGRAM_CLIENTS.map((client) => new TelegramWorker(client, RESO
 let downloadQueue = new DownloadQueue(tgWorkers);
 const bot = new TelegramBot(TELEGRAM_BOT.TELEGRAM_BOT_TOKEN);
 await mongoose.connect(DATABASE.DB_URL);
+var MENUS;
+(function (MENUS) {
+    MENUS["OPTIONS"] = "O";
+    MENUS["LOGIN"] = "L";
+    MENUS["DOWNLOAD_PLAYLIST"] = "DP";
+    MENUS["EXPORT_PLAYLIST"] = "EP";
+})(MENUS || (MENUS = {}));
+const SEP = '|'; // you can pick any separator unlikely to appear in your data
+function CommandStringify(cmd) {
+    switch (cmd.command) {
+        case MENUS.DOWNLOAD_PLAYLIST:
+            {
+                let args = cmd.args;
+                return `${MENUS.DOWNLOAD_PLAYLIST}${SEP}${args.playlistId}${SEP}${args.playlistName}`;
+            }
+        case MENUS.EXPORT_PLAYLIST:
+            {
+                let args = cmd.args;
+                return `${MENUS.EXPORT_PLAYLIST}${SEP}${args.playlistName}`;
+            }
+        case MENUS.LOGIN:
+            return MENUS.LOGIN;
+        case MENUS.OPTIONS:
+            return MENUS.OPTIONS;
+    }
+}
+function CommandParse(str) {
+    const parts = str.split(SEP);
+    const command = parts[0];
+    switch (command) {
+        case MENUS.DOWNLOAD_PLAYLIST:
+            return {
+                command,
+                args: { playlistId: parts[1], playlistName: parts[2] }
+            };
+        case MENUS.EXPORT_PLAYLIST:
+            return { command, args: { playlistName: parts[1] } };
+        case MENUS.LOGIN:
+            return { command, args: {} };
+        case MENUS.OPTIONS:
+            return { command, args: {} };
+        default:
+            throw new Error(`Unknown command: ${command}`);
+    }
+}
 bot.onText(/\/start/, async (msg) => {
     try {
         let user = await SpotifyUser.get(msg.chat.id.toString(), bot);
-        sendMenu(user);
+        const playlists = await user.getPlaylists();
+        let menu = [[{
+                    text: "🎵 Saved Music",
+                    callback_data: CommandStringify({
+                        command: MENUS.DOWNLOAD_PLAYLIST,
+                        args: { playlistId: "saved", playlistName: "Saved Tracks" }
+                    })
+                }]];
+        playlists.forEach(playlist => {
+            menu.push([{
+                    text: playlist.name,
+                    callback_data: CommandStringify({
+                        command: MENUS.DOWNLOAD_PLAYLIST,
+                        args: { playlistId: playlist.id, playlistName: playlist.name }
+                    })
+                }]);
+        });
+        bot.sendMessage(user.getChatId(), "Select which playlist you want to download:", {
+            reply_markup: {
+                inline_keyboard: menu,
+            },
+        });
     }
     catch (e) {
         console.log(e);
     }
 });
-const sendMenu = async (user) => {
-    const playlists = await user.getPlaylists();
-    let menu = [[{ text: "🎵 Saved Music", callback_data: "saved" }]];
-    playlists.forEach(playlist => {
-        menu.push([{ text: playlist.name, callback_data: playlist.id }]);
-    });
-    bot.sendMessage(user.getChatId(), "Select which playlist you want to download:", {
-        reply_markup: {
-            inline_keyboard: menu,
-        },
-    });
-};
+// export a playlist as M3U
+bot.onText(/\/export/, async (msg) => {
+    try {
+        let user = await SpotifyUser.get(msg.chat.id.toString(), bot);
+        const playlists = await user.getPlaylists();
+        let menu = [[{
+                    text: "🎵 Saved Music",
+                    callback_data: CommandStringify({
+                        command: MENUS.EXPORT_PLAYLIST,
+                        args: { playlistName: "Saved Tracks" }
+                    })
+                }]];
+        playlists.forEach(playlist => {
+            menu.push([{
+                    text: playlist.name,
+                    callback_data: CommandStringify({
+                        command: MENUS.EXPORT_PLAYLIST,
+                        args: { playlistName: playlist.name }
+                    })
+                }]);
+        });
+        bot.sendMessage(user.getChatId(), "Select which playlist you want to export:", {
+            reply_markup: {
+                inline_keyboard: menu,
+            },
+        });
+    }
+    catch (e) {
+        console.log(e);
+    }
+});
 bot.on("callback_query", async (query) => {
     // Acknowledge the button press
     bot.answerCallbackQuery(query.id);
-    const chatId = query.message.chat.id;
-    const playlistSpotifyId = query.data;
+    if (!query.message || !query.data)
+        return;
+    const chatId = query.message.chat.id.toString();
+    const cmd = CommandParse(query.data);
+    switch (cmd.command) {
+        case MENUS.DOWNLOAD_PLAYLIST:
+            downloadPlaylist(chatId, cmd.args);
+            break;
+        case MENUS.EXPORT_PLAYLIST:
+            exportPlaylist(chatId, cmd.args);
+            break;
+    }
+});
+async function exportPlaylist(chatId, args) {
+    const user = await User.findOne({ telegram_chat_id: chatId });
+    const playlist = await Playlist.findOne({ name: args.playlistName, owner: user._id });
+    const playlistSongs = await PlaylistSong.find({ playlistId: playlist?._id })
+        .populate("songId")
+        .exec();
+    let rawData = "#EXTM3U\n#PLAYLIST:" + args.playlistName + "\n";
+    for (let song of playlistSongs.sort((a, b) => b.added_at.getTime() - a.added_at.getTime())) {
+        if (!song.songId) {
+            song.deleteOne();
+            continue;
+        }
+        rawData = rawData.concat(song.songId.filename + "\n");
+    }
+    const data = Buffer.from(rawData, 'utf-8');
+    bot.sendDocument(chatId, data, {}, {
+        filename: args.playlistName + "." + chatId + ".m3u",
+        contentType: 'text/plain'
+    });
+}
+async function downloadPlaylist(chatId, args) {
     let user = await SpotifyUser.get(chatId, bot);
-    let playlistData = { name: playlistSpotifyId, owner: (await User.findOne({ telegram_chat_id: chatId }))?._id };
+    let playlistData = { name: args.playlistName, owner: (await User.findOne({ telegram_chat_id: chatId }))?._id };
     let tmp;
     let playlist;
     if ((tmp = await Playlist.findOne(playlistData)))
@@ -58,10 +175,10 @@ bot.on("callback_query", async (query) => {
         usr.save();
     }
     let tracks;
-    if (playlistSpotifyId == "saved")
+    if (args.playlistId == "saved")
         tracks = await user.getSavedTracks();
     else
-        tracks = await user.getPlaylistTracks(playlistSpotifyId);
+        tracks = await user.getPlaylistTracks(args.playlistId);
     let count = 0;
     for (const song of tracks) {
         if (song.track == null) {
@@ -72,7 +189,7 @@ bot.on("callback_query", async (query) => {
             console.log("Skipping (already downloaded): " + song.track.name);
             let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: tmp.id });
             if (!record)
-                (new PlaylistSong({ playlistId: playlist.id, songId: tmp.id })).save();
+                (new PlaylistSong({ playlistId: playlist.id, songId: tmp.id, added_at: new Date(song.added_at) })).save();
             count++;
             continue;
         }
@@ -86,7 +203,7 @@ bot.on("callback_query", async (query) => {
                 sng.save();
                 let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id });
                 if (!record)
-                    (new PlaylistSong({ playlistId: playlist.id, songId: sng.id })).save();
+                    (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save();
                 console.log("✅ Saved:", song.track.name);
                 count++;
                 if (count >= tracks.length)
@@ -104,7 +221,7 @@ bot.on("callback_query", async (query) => {
                         sng.save();
                         let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id });
                         if (!record)
-                            (new PlaylistSong({ playlistId: playlist.id, songId: sng.id })).save();
+                            (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save();
                         console.log("✅ Saved:", song.track.name);
                         count++;
                         if (count >= tracks.length)
@@ -121,7 +238,7 @@ bot.on("callback_query", async (query) => {
             }
         }));
     }
-});
+}
 app.post("/spotifydl/webhook", function (req, res) {
     bot.processUpdate(req.body);
     res.send(200);

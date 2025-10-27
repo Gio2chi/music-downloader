@@ -8,7 +8,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node dist/index.js",
-    "build": "npx tsc && docker build -t musicdl-test ."
+    "build": "npx tsc && docker build -t music-downloader ."
   },
   "dependencies": {
     "dotenv": "^17.2.1",

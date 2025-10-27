@@ -1,4 +1,4 @@
-import TelegramBot from "node-telegram-bot-api";
+import TelegramBot, { CallbackQuery } from "node-telegram-bot-api";
 import path from "path"
 import mongoose, { HydratedDocument } from "mongoose";
 
@@ -8,10 +8,10 @@ import { app } from "./serverInstance.js"
 
 import DownloadResolver from "./download/DownloadResolver.js";
 import { updateMetadata } from "./metadataManager.js"
-import { Song } from "./models/Song.js";
+import { ISong, Song } from "./models/Song.js";
 import { IPlaylist, Playlist } from "./models/Playlist.js";
-import { IUser, User } from "./models/User.js";
-import { PlaylistSong } from "./models/PlaylistSong.js";
+import { User } from "./models/User.js";
+import { IPlaylistSong, PlaylistSong } from "./models/PlaylistSong.js";
 
 import PriorityWorkerQueue from "./core/PriorityWorkerQueue.js";
 import TelegramWorker from "./telegram/TelegramWorker.js";
@@ -29,41 +29,184 @@ const bot = new TelegramBot(TELEGRAM_BOT.TELEGRAM_BOT_TOKEN);
 
 await mongoose.connect(DATABASE.DB_URL)
 
+enum MENUS {
+    OPTIONS = 'O',
+    LOGIN = 'L',
+    DOWNLOAD_PLAYLIST = 'DP',
+    EXPORT_PLAYLIST = 'EP'
+}
+
+type CommandArgs = {
+    [MENUS.OPTIONS]: {};
+    [MENUS.LOGIN]: {};
+    [MENUS.DOWNLOAD_PLAYLIST]: { playlistId: string, playlistName: string };
+    [MENUS.EXPORT_PLAYLIST]: { playlistName: string };
+}
+
+type Command<C extends MENUS = MENUS> = {
+    command: C;
+    args: CommandArgs[C];
+};
+
+const SEP = '|'
+
+// Needs to make a string that can fit in 64 bytes
+// if causes problems then move to send only the playlist id and store both the name and the spotify id in the database
+function CommandStringify<C extends MENUS>(cmd: Command<C>): string {
+    switch (cmd.command) {
+        case MENUS.DOWNLOAD_PLAYLIST:
+            {
+                let args = cmd.args as CommandArgs[MENUS.DOWNLOAD_PLAYLIST]
+                return `${MENUS.DOWNLOAD_PLAYLIST}${SEP}${args.playlistId}${SEP}${args.playlistName}`
+            }
+        case MENUS.EXPORT_PLAYLIST:
+            {
+                let args = cmd.args as CommandArgs[MENUS.EXPORT_PLAYLIST]
+                return `${MENUS.EXPORT_PLAYLIST}${SEP}${args.playlistName}`
+            }
+        case MENUS.LOGIN:
+            return MENUS.LOGIN;
+        case MENUS.OPTIONS:
+            return MENUS.OPTIONS;
+    }
+}
+
+function CommandParse(str: string): Command {
+    const parts = str.split(SEP);
+    const command = parts[0] as MENUS;
+
+    switch (command) {
+        case MENUS.DOWNLOAD_PLAYLIST:
+            return {
+                command,
+                args: { playlistId: parts[1], playlistName: parts[2] }
+            };
+        case MENUS.EXPORT_PLAYLIST:
+            return { command, args: { playlistName: parts[1] } };
+        case MENUS.LOGIN:
+            return { command, args: {} };
+        case MENUS.OPTIONS:
+            return { command, args: {} };
+        default:
+            throw new Error(`Unknown command: ${command}`);
+    }
+}
+
 bot.onText(/\/start/, async (msg: TelegramBot.Message) => {
     try {
         let user = await SpotifyUser.get(msg.chat.id.toString(), bot)
-        sendMenu(user)
+
+        const playlists = await user.getPlaylists()
+        let menu = [[{
+            text: "🎵 Saved Music",
+            callback_data: CommandStringify({
+                command: MENUS.DOWNLOAD_PLAYLIST,
+                args: { playlistId: "saved", playlistName: "Saved Tracks" }
+            })
+        }]]
+
+        playlists.forEach(playlist => {
+            menu.push([{
+                text: playlist.name,
+                callback_data: CommandStringify({
+                    command: MENUS.DOWNLOAD_PLAYLIST,
+                    args: { playlistId: playlist.id, playlistName: playlist.name }
+                })
+            }])
+        })
+
+        bot.sendMessage(user.getChatId(), "Select which playlist you want to download:", {
+            reply_markup: {
+                inline_keyboard: menu,
+            },
+        });
     } catch (e) {
         console.log(e)
     }
 });
 
-const sendMenu = async (user: SpotifyUser) => {
+// export a playlist as M3U
+bot.onText(/\/export/, async (msg: TelegramBot.Message) => {
+    try {
+        let user = await SpotifyUser.get(msg.chat.id.toString(), bot)
 
-    const playlists = await user.getPlaylists()
-    let menu = [[{ text: "🎵 Saved Music", callback_data: "saved" }]]
+        const playlists = await user.getPlaylists()
+        let menu = [[{
+            text: "🎵 Saved Music",
+            callback_data: CommandStringify({
+                command: MENUS.EXPORT_PLAYLIST,
+                args: { playlistName: "Saved Tracks" }
+            })
+        }]]
 
-    playlists.forEach(playlist => {
-        menu.push([{ text: playlist.name, callback_data: playlist.id }])
-    })
+        playlists.forEach(playlist => {
+            menu.push([{
+                text: playlist.name,
+                callback_data: CommandStringify({
+                    command: MENUS.EXPORT_PLAYLIST,
+                    args: { playlistName: playlist.name }
+                })
+            }])
+        })
 
-    bot.sendMessage(user.getChatId(), "Select which playlist you want to download:", {
-        reply_markup: {
-            inline_keyboard: menu,
-        },
-    });
-}
+        bot.sendMessage(user.getChatId(), "Select which playlist you want to export:", {
+            reply_markup: {
+                inline_keyboard: menu,
+            },
+        });
 
-bot.on("callback_query", async (query: Record<string, any>) => {
+    } catch (e) {
+        console.log(e)
+    }
+});
+
+bot.on("callback_query", async (query: CallbackQuery) => {
     // Acknowledge the button press
     bot.answerCallbackQuery(query.id);
 
-    const chatId = query.message.chat.id;
-    const playlistSpotifyId = query.data;
+    if (!query.message || !query.data)
+        return
 
+    const chatId = query.message.chat.id.toString();
+    const cmd: Command = CommandParse(query.data)
+
+    switch (cmd.command) {
+        case MENUS.DOWNLOAD_PLAYLIST: downloadPlaylist(chatId, cmd.args as CommandArgs[MENUS.DOWNLOAD_PLAYLIST]); break;
+        case MENUS.EXPORT_PLAYLIST: exportPlaylist(chatId, cmd.args as CommandArgs[MENUS.EXPORT_PLAYLIST]); break;
+    }
+})
+
+type Populated<T, K extends keyof T, P> = Omit<HydratedDocument<T>, K> & Record<K, HydratedDocument<P> | null>;
+
+async function exportPlaylist(chatId: string, args: CommandArgs[MENUS.EXPORT_PLAYLIST]) {
+    const user = await User.findOne({ telegram_chat_id: chatId })
+    const playlist = await Playlist.findOne({ name: args.playlistName, owner: user!._id })
+    const playlistSongs = await PlaylistSong.find({ playlistId: playlist?._id })
+        .populate("songId")
+        .exec() as unknown as Populated<IPlaylistSong, 'songId', ISong>[];
+
+    let rawData = "#EXTM3U\n#PLAYLIST:" + args.playlistName + "\n"
+    for (let song of playlistSongs.sort((a, b) => b.added_at.getTime() - a.added_at.getTime())) {
+        if (!song.songId) {
+            song.deleteOne()
+            continue
+        }
+
+        rawData = rawData.concat(song.songId.filename + "\n")
+    }
+
+    const data = Buffer.from(rawData, 'utf-8');
+
+    bot.sendDocument(chatId, data, {}, {
+        filename: args.playlistName + "." + chatId + ".m3u",
+        contentType: 'text/plain'
+    });
+}
+
+async function downloadPlaylist(chatId: string, args: CommandArgs[MENUS.DOWNLOAD_PLAYLIST]) {
     let user = await SpotifyUser.get(chatId, bot)
 
-    let playlistData: any = { name: playlistSpotifyId, owner: (await User.findOne({ telegram_chat_id: chatId }))?._id }
+    let playlistData: any = { name: args.playlistName, owner: (await User.findOne({ telegram_chat_id: chatId }))?._id }
     let tmp: any
     let playlist: HydratedDocument<IPlaylist>
     if ((tmp = await Playlist.findOne(playlistData)))
@@ -78,10 +221,10 @@ bot.on("callback_query", async (query: Record<string, any>) => {
     }
 
     let tracks: SpotifyApi.SavedTrackObject[] | SpotifyApi.PlaylistTrackObject[]
-    if (playlistSpotifyId == "saved")
+    if (args.playlistId == "saved")
         tracks = await user.getSavedTracks()
     else
-        tracks = await user.getPlaylistTracks(playlistSpotifyId)
+        tracks = await user.getPlaylistTracks(args.playlistId)
 
     let count = 0
     for (const song of tracks) {
@@ -94,7 +237,7 @@ bot.on("callback_query", async (query: Record<string, any>) => {
             console.log("Skipping (already downloaded): " + song.track.name)
             let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: tmp.id })
             if (!record)
-                (new PlaylistSong({ playlistId: playlist.id, songId: tmp.id })).save()
+                (new PlaylistSong({ playlistId: playlist.id, songId: tmp.id, added_at: new Date(song.added_at) })).save()
             count++;
             continue;
         }
@@ -110,7 +253,7 @@ bot.on("callback_query", async (query: Record<string, any>) => {
 
                 let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id })
                 if (!record)
-                    (new PlaylistSong({ playlistId: playlist.id, songId: sng.id })).save()
+                    (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save()
 
                 console.log("✅ Saved:", song.track!.name);
                 count++;
@@ -130,7 +273,7 @@ bot.on("callback_query", async (query: Record<string, any>) => {
 
                         let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id })
                         if (!record)
-                            (new PlaylistSong({ playlistId: playlist.id, songId: sng.id })).save()
+                            (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save()
 
                         console.log("✅ Saved:", song.track!.name);
                         count++;
@@ -148,7 +291,7 @@ bot.on("callback_query", async (query: Record<string, any>) => {
             }
         }))
     }
-})
+}
 
 app.post("/spotifydl/webhook", function (req, res) {
     bot.processUpdate(req.body);

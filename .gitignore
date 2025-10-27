@@ -4,6 +4,7 @@ node_modules
 *.json
 !tsconfig.json
 !package.json
+!package-lock.json
 !template.env
 !template.config.json
 downloads

@@ -211,12 +211,12 @@ async function exportPlaylist(chatId: string, args: CommandArgs[MENUS.EXPORT_PLA
     type Populated<T, K extends keyof T, P> = Omit<HydratedDocument<T>, K> & Record<K, HydratedDocument<P> | null>;
 
     const user = await User.findOne({ telegram_chat_id: chatId })
-    const playlist = await Playlist.findOne({ spotifyId: args.playlistId, owner: user!._id })
-    const playlistSongs = await PlaylistSong.find({ playlistId: playlist?._id })
+    const playlist = (await Playlist.findOne({ spotifyId: args.playlistId, owner: user!._id }))!
+    const playlistSongs = await PlaylistSong.find({ playlistId: playlist._id })
         .populate("songId")
         .exec() as unknown as Populated<IPlaylistSong, 'songId', ISong>[];
 
-    let rawData = "#EXTM3U\n#PLAYLIST:" + playlist!.name + "\n"
+    let rawData = "#EXTM3U\n#PLAYLIST:" + playlist.name + "\n"
     for (let song of playlistSongs.sort((a, b) => b.added_at.getTime() - a.added_at.getTime())) {
         if (!song.songId) {
             song.deleteOne()
@@ -229,7 +229,7 @@ async function exportPlaylist(chatId: string, args: CommandArgs[MENUS.EXPORT_PLA
     const data = Buffer.from(rawData, 'utf-8');
 
     bot.sendDocument(chatId, data, {}, {
-        filename: playlist!.name + "." + chatId + ".m3u",
+        filename: playlist.name + ".m3u",
         contentType: 'text/plain'
     });
 }

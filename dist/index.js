@@ -21,10 +21,31 @@ await mongoose.connect(DATABASE.DB_URL);
 var MENUS;
 (function (MENUS) {
     MENUS["OPTIONS"] = "O";
-    MENUS["LOGIN"] = "L";
+    MENUS["HELP"] = "H";
+    MENUS["LOGIN"] = "LI";
+    MENUS["LOGOUT"] = "LO";
     MENUS["DOWNLOAD_PLAYLIST"] = "DP";
     MENUS["EXPORT_PLAYLIST"] = "EP";
+    MENUS["BACK"] = "B";
 })(MENUS || (MENUS = {}));
+const MENU_DESCRIPTIONS = {
+    [MENUS.OPTIONS]: "Overview of all the commands",
+    [MENUS.HELP]: "Full description of all the commands",
+    [MENUS.LOGIN]: "Sign in into Spotify",
+    [MENUS.LOGOUT]: "Sign out from Spotify",
+    [MENUS.DOWNLOAD_PLAYLIST]: "Select a playlist of yours from Spotify to download",
+    [MENUS.EXPORT_PLAYLIST]: "Select a playlist of yours from Spotify to export as .m3u file",
+    [MENUS.BACK]: "go back to the previous menu"
+};
+const MENU_NAMES = {
+    [MENUS.OPTIONS]: "start",
+    [MENUS.HELP]: "help",
+    [MENUS.LOGIN]: "login",
+    [MENUS.LOGOUT]: "logout",
+    [MENUS.DOWNLOAD_PLAYLIST]: "download",
+    [MENUS.EXPORT_PLAYLIST]: "export",
+    [MENUS.BACK]: "back"
+};
 const SEP = '|';
 // Needs to make a string that can fit in 64 bytes
 function CommandStringify(cmd) {
@@ -32,59 +53,186 @@ function CommandStringify(cmd) {
         case MENUS.DOWNLOAD_PLAYLIST:
             {
                 let args = cmd.args;
-                return `${MENUS.DOWNLOAD_PLAYLIST}${SEP}${args.playlistId}`;
+                if (args)
+                    return `${MENUS.DOWNLOAD_PLAYLIST}${SEP}${args.playlistId}`;
+                return MENUS.DOWNLOAD_PLAYLIST;
             }
         case MENUS.EXPORT_PLAYLIST:
             {
                 let args = cmd.args;
-                return `${MENUS.EXPORT_PLAYLIST}${SEP}${args.playlistId}`;
+                if (args)
+                    return `${MENUS.EXPORT_PLAYLIST}${SEP}${args.playlistId}`;
+                return MENUS.EXPORT_PLAYLIST;
             }
-        case MENUS.LOGIN:
-            return MENUS.LOGIN;
         case MENUS.OPTIONS:
-            return MENUS.OPTIONS;
+            {
+                let args = cmd.args;
+                return `${MENUS.OPTIONS}${SEP}${args.option}`;
+            }
+        default:
+            return cmd.command;
     }
 }
 function CommandParse(str) {
     const parts = str.split(SEP);
+    let back = false;
+    // routing: OPTIONS|EXPORT|spotifyId --> EXPORT|spotifyId
+    if (parts.length !== 1 && parts[0] == MENUS.OPTIONS) {
+        parts.shift();
+        back = true;
+    }
     const command = parts[0];
     switch (command) {
         case MENUS.DOWNLOAD_PLAYLIST:
             return {
+                name: MENU_NAMES[command],
                 command,
-                args: { playlistId: parts[1] }
+                args: parts[1] ? { playlistId: parts[1] } : null,
+                description: MENU_DESCRIPTIONS[command],
+                back
             };
         case MENUS.EXPORT_PLAYLIST:
-            return { command, args: { playlistId: parts[1] } };
-        case MENUS.LOGIN:
-            return { command, args: {} };
+            return {
+                name: MENU_NAMES[command],
+                command,
+                args: parts[1] ? { playlistId: parts[1] } : null,
+                description: MENU_DESCRIPTIONS[command],
+                back
+            };
+        // shouldn't fall in this scenario btw
         case MENUS.OPTIONS:
-            return { command, args: {} };
+            return {
+                name: MENU_NAMES[command],
+                command,
+                args: { option: parts[0] },
+                description: MENU_DESCRIPTIONS[command],
+                back
+            };
         default:
-            throw new Error(`Unknown command: ${command}`);
+            return {
+                name: MENU_NAMES[command],
+                command,
+                args: null,
+                description: MENU_DESCRIPTIONS[command],
+                back
+            };
     }
 }
 bot.onText(/\/start/, async (msg) => {
     try {
+        let botDesc = await bot.getMe();
         const chatId = msg.chat.id.toString();
-        let user = await SpotifyUser.get(chatId, bot);
-        const playlists = await user.getPlaylists();
-        let menu = [[{
-                    text: "🎵 Saved Music",
-                    callback_data: CommandStringify({
-                        command: MENUS.DOWNLOAD_PLAYLIST,
-                        args: { playlistId: "saved" }
-                    })
-                }]];
-        let userRecord = (await User.findOne({ telegram_chat_id: chatId }));
-        let playlistData = {
-            spotifyId: "saved",
-            name: "🎵 Saved Music",
+        bot.sendMessage(chatId, "Welcome to " + botDesc.first_name, {
+            reply_markup: {
+                inline_keyboard: await getOptionMenu(chatId),
+            },
+        });
+    }
+    catch (e) {
+        console.error(e);
+    }
+});
+async function getOptionMenu(chatId) {
+    let menu = [
+        [{
+                text: MENU_NAMES[MENUS.HELP],
+                callback_data: CommandStringify({
+                    command: MENUS.OPTIONS,
+                    args: { option: MENUS.HELP }
+                })
+            }],
+        [{
+                text: MENU_NAMES[MENUS.DOWNLOAD_PLAYLIST],
+                callback_data: CommandStringify({
+                    command: MENUS.OPTIONS,
+                    args: { option: MENUS.DOWNLOAD_PLAYLIST }
+                })
+            }, {
+                text: MENU_NAMES[MENUS.EXPORT_PLAYLIST],
+                callback_data: CommandStringify({
+                    command: MENUS.OPTIONS,
+                    args: { option: MENUS.EXPORT_PLAYLIST }
+                })
+            }],
+        [{
+                text: MENU_NAMES[MENUS.LOGIN],
+                callback_data: CommandStringify({
+                    command: MENUS.OPTIONS,
+                    args: { option: MENUS.LOGIN }
+                })
+            }, {
+                text: MENU_NAMES[MENUS.LOGOUT],
+                callback_data: CommandStringify({
+                    command: MENUS.OPTIONS,
+                    args: { option: MENUS.LOGOUT }
+                })
+            }]
+    ];
+    return menu;
+}
+bot.onText(/\/help/, async (msg) => {
+    const chatId = msg.chat.id.toString();
+    let description = "**List of all commands**:\n";
+    for (let menu of Object.values(MENUS)) {
+        description += `/${MENU_NAMES[menu]} - ${MENU_DESCRIPTIONS[menu]}\n`;
+    }
+    bot.sendMessage(chatId, description, { parse_mode: 'Markdown' });
+});
+bot.onText(/\/login/, async (msg) => { });
+bot.onText(/\/logout/, async (msg) => { });
+bot.onText(/\/download/, async (msg) => {
+    try {
+        const chatId = msg.chat.id.toString();
+        bot.sendMessage(chatId, "Select which playlist you want to download:", {
+            reply_markup: {
+                inline_keyboard: await getDownloadMenu(chatId),
+            },
+        });
+    }
+    catch (e) {
+        console.log(e);
+    }
+});
+async function getDownloadMenu(chatId, back = false) {
+    let user = await SpotifyUser.get(chatId, bot);
+    const playlists = await user.getPlaylists();
+    let menu = [[{
+                text: "🎵 Saved Music",
+                callback_data: CommandStringify({
+                    command: MENUS.DOWNLOAD_PLAYLIST,
+                    args: { playlistId: "saved" }
+                })
+            }]];
+    let userRecord = (await User.findOne({ telegram_chat_id: chatId }));
+    let playlistData = {
+        spotifyId: "saved",
+        name: "🎵 Saved Music",
+        downloaded: false,
+        owner: userRecord._id
+    };
+    let tmp;
+    let playlist;
+    if ((tmp = await Playlist.findOne(playlistData)))
+        playlist = tmp;
+    else {
+        playlist = new Playlist(playlistData);
+        playlist.save();
+        userRecord.playlists.push(playlist._id);
+    }
+    for (let p of playlists) {
+        menu.push([{
+                text: p.name,
+                callback_data: CommandStringify({
+                    command: MENUS.DOWNLOAD_PLAYLIST,
+                    args: { playlistId: p.id }
+                })
+            }]);
+        playlistData = {
+            spotifyId: p.id,
+            name: p.name,
             downloaded: false,
             owner: userRecord._id
         };
-        let tmp;
-        let playlist;
         if ((tmp = await Playlist.findOne(playlistData)))
             playlist = tmp;
         else {
@@ -92,58 +240,24 @@ bot.onText(/\/start/, async (msg) => {
             playlist.save();
             userRecord.playlists.push(playlist._id);
         }
-        for (let p of playlists) {
-            menu.push([{
-                    text: p.name,
-                    callback_data: CommandStringify({
-                        command: MENUS.DOWNLOAD_PLAYLIST,
-                        args: { playlistId: p.id }
-                    })
-                }]);
-            playlistData = {
-                spotifyId: p.id,
-                name: p.name,
-                downloaded: false,
-                owner: userRecord._id
-            };
-            if ((tmp = await Playlist.findOne(playlistData)))
-                playlist = tmp;
-            else {
-                playlist = new Playlist(playlistData);
-                playlist.save();
-                userRecord.playlists.push(playlist._id);
-            }
-        }
-        userRecord.save();
-        bot.sendMessage(user.getChatId(), "Select which playlist you want to download:", {
-            reply_markup: {
-                inline_keyboard: menu,
-            },
-        });
     }
-    catch (e) {
-        console.log(e);
-    }
-});
+    userRecord.save();
+    if (back)
+        menu.push([{
+                text: "◀️", callback_data: CommandStringify({
+                    command: MENUS.BACK,
+                    args: null
+                })
+            }]);
+    return menu;
+}
 // export a playlist as M3U
 bot.onText(/\/export/, async (msg) => {
     try {
-        let user = await User.findOne({ telegram_chat_id: msg.chat.id })
-            .populate("playlists")
-            .exec();
-        let menu = [];
-        user.playlists.filter(p => p.downloaded).forEach(playlist => {
-            menu.push([{
-                    text: playlist.name,
-                    callback_data: CommandStringify({
-                        command: MENUS.EXPORT_PLAYLIST,
-                        args: { playlistId: playlist.spotifyId }
-                    })
-                }]);
-        });
-        bot.sendMessage(user.telegram_chat_id, "Select which playlist you want to export:", {
+        const chatId = msg.chat.id.toString();
+        bot.sendMessage(chatId, "Select which playlist you want to export:", {
             reply_markup: {
-                inline_keyboard: menu,
+                inline_keyboard: await getExportMenu(chatId),
             },
         });
     }
@@ -151,26 +265,121 @@ bot.onText(/\/export/, async (msg) => {
         console.log(e);
     }
 });
+async function getExportMenu(chatId, back = false) {
+    let user = await User.findOne({ telegram_chat_id: chatId })
+        .populate("playlists")
+        .exec();
+    let menu = [];
+    user.playlists.filter(p => p.downloaded).forEach(playlist => {
+        menu.push([{
+                text: playlist.name,
+                callback_data: CommandStringify({
+                    command: MENUS.EXPORT_PLAYLIST,
+                    args: { playlistId: playlist.spotifyId }
+                })
+            }]);
+    });
+    if (back)
+        menu.push([{
+                text: "◀️", callback_data: CommandStringify({
+                    command: MENUS.BACK,
+                    args: null
+                })
+            }]);
+    return menu;
+}
 bot.on("callback_query", async (query) => {
     // Acknowledge the button press
     bot.answerCallbackQuery(query.id);
     if (!query.message || !query.data)
         return;
     const chatId = query.message.chat.id.toString();
+    const msgId = query.message.message_id;
     const cmd = CommandParse(query.data);
-    switch (cmd.command) {
-        case MENUS.DOWNLOAD_PLAYLIST:
-            downloadPlaylist(chatId, cmd.args);
-            break;
-        case MENUS.EXPORT_PLAYLIST:
-            exportPlaylist(chatId, cmd.args);
-            break;
+    try {
+        switch (cmd.command) {
+            case MENUS.OPTIONS:
+                {
+                    const botDesc = await bot.getMe();
+                    bot.editMessageText("Welcome to " + botDesc.first_name, {
+                        chat_id: chatId,
+                        message_id: msgId,
+                        reply_markup: {
+                            inline_keyboard: await getOptionMenu(chatId),
+                        },
+                    });
+                    return;
+                }
+            case MENUS.BACK:
+                {
+                    const botDesc = await bot.getMe();
+                    bot.editMessageText("Welcome to " + botDesc.first_name, {
+                        chat_id: chatId,
+                        message_id: msgId,
+                        reply_markup: {
+                            inline_keyboard: await getOptionMenu(chatId),
+                        },
+                    });
+                    return;
+                }
+            case MENUS.DOWNLOAD_PLAYLIST:
+                {
+                    if (cmd.args != null)
+                        downloadPlaylist(chatId, cmd.args);
+                    else
+                        bot.editMessageText("Select which playlist you want to download:", {
+                            chat_id: chatId,
+                            message_id: msgId,
+                            reply_markup: {
+                                inline_keyboard: await getDownloadMenu(chatId, true),
+                            },
+                        });
+                    return;
+                }
+            case MENUS.EXPORT_PLAYLIST:
+                {
+                    if (cmd.args != null)
+                        exportPlaylist(chatId, cmd.args);
+                    else
+                        bot.editMessageText("Select which playlist you want to export:", {
+                            chat_id: chatId,
+                            message_id: msgId,
+                            reply_markup: {
+                                inline_keyboard: await getExportMenu(chatId, true),
+                            },
+                        });
+                    return;
+                }
+            case MENUS.HELP:
+                {
+                    let description = "**List of all commands**:\n";
+                    for (let menu of Object.values(MENUS)) {
+                        description += `/${MENU_NAMES[menu]} - ${MENU_DESCRIPTIONS[menu]}\n`;
+                    }
+                    bot.editMessageText(description, {
+                        chat_id: chatId,
+                        message_id: msgId,
+                        reply_markup: {
+                            inline_keyboard: [[{
+                                        text: "◀️", callback_data: CommandStringify({
+                                            command: MENUS.BACK,
+                                            args: null
+                                        })
+                                    }]]
+                        },
+                        parse_mode: 'Markdown'
+                    });
+                }
+        }
+    }
+    catch (e) {
+        console.error(e);
     }
 });
 async function exportPlaylist(chatId, args) {
     const user = await User.findOne({ telegram_chat_id: chatId });
-    const playlist = await Playlist.findOne({ spotifyId: args.playlistId, owner: user._id });
-    const playlistSongs = await PlaylistSong.find({ playlistId: playlist?._id })
+    const playlist = (await Playlist.findOne({ spotifyId: args.playlistId, owner: user._id }));
+    const playlistSongs = await PlaylistSong.find({ playlistId: playlist._id })
         .populate("songId")
         .exec();
     let rawData = "#EXTM3U\n#PLAYLIST:" + playlist.name + "\n";
@@ -183,8 +392,8 @@ async function exportPlaylist(chatId, args) {
     }
     const data = Buffer.from(rawData, 'utf-8');
     bot.sendDocument(chatId, data, {}, {
-        filename: playlist.name + "." + chatId + ".m3u",
-        contentType: 'text/plain'
+        filename: playlist.name + ".m3u",
+        contentType: 'application/octet-stream'
     });
 }
 async function downloadPlaylist(chatId, args) {
@@ -214,6 +423,7 @@ async function downloadPlaylist(chatId, args) {
             continue;
         }
         if (song.track.external_ids.isrc == undefined) {
+            count++;
             bot.sendMessage(chatId, `❌ Failed to download: ${song.track.name} ${song.track.external_urls.spotify}\n metadata not available.`);
             continue;
         }

@@ -20,7 +20,7 @@
     "mongoose": "^8.19.0",
     "music-metadata": "^11.9.0",
     "node-id3": "^0.2.9",
-    "node-telegram-bot-api": "^0.63.0",
+    "node-telegram-bot-api": "^0.66.0",
     "passport": "^0.7.0",
     "passport-spotify": "^2.0.0",
     "spotify-web-api-node": "^5.0.2",

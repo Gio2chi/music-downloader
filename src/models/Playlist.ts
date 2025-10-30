@@ -5,6 +5,7 @@ export interface IPlaylist {
     name: string,
     spotifyId: string,
     downloaded: boolean
+    // TODO: #11 inProgress: boolean to track if the download has been completed in order to notify when exporting
 }
 
 export const PlaylistSchema = new Schema<IPlaylist>({

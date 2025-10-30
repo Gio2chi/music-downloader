@@ -218,12 +218,46 @@ bot.onText(/\/help/, async (msg: TelegramBot.Message) => {
         description += `/${MENU_NAMES[menu]} - ${MENU_DESCRIPTIONS[menu]}\n`
     }
 
-    bot.sendMessage(chatId, description, {parse_mode: 'Markdown'})
+    bot.sendMessage(chatId, description, { parse_mode: 'Markdown' })
 })
 
-bot.onText(/\/login/, async (msg: TelegramBot.Message) => { })
+bot.onText(/\/login/, async (msg: TelegramBot.Message) => {
+    const chatId = msg.chat.id.toString()
 
-bot.onText(/\/logout/, async (msg: TelegramBot.Message) => { })
+    try {
+        await logout(chatId)
+
+        SpotifyUser.get(chatId, bot)
+    } catch (e) { 
+        console.log(e)
+    }
+})
+
+bot.onText(/\/logout/, async (msg: TelegramBot.Message) => {
+    const chatId = msg.chat.id.toString()
+
+    try {
+        logout(chatId)
+    } catch (e) { 
+        console.log(e) 
+    }
+})
+
+async function logout(chatId: string) {
+    let user = await User.findOne({ telegram_chat_id: chatId })
+        .populate("playlists")
+        .exec() as unknown as Omit<HydratedDocument<IUser>, 'playlists'> & Record<'playlists', HydratedDocument<IPlaylist>[]>
+
+    if (!user)
+        return
+
+    for (let playlist of user.playlists) {
+        await PlaylistSong.deleteMany({ playlistId: playlist._id })
+    }
+
+    await Playlist.deleteMany({ owner: user._id })
+    await User.deleteOne({ telegram_chat_id: chatId })
+}
 
 bot.onText(/\/download/, async (msg: TelegramBot.Message) => {
     try {
@@ -255,7 +289,6 @@ async function getDownloadMenu(chatId: string, back = false): Promise<TelegramBo
     let playlistData = {
         spotifyId: "saved",
         name: "🎵 Saved Music",
-        downloaded: false,
         owner: userRecord._id
     }
 
@@ -265,6 +298,7 @@ async function getDownloadMenu(chatId: string, back = false): Promise<TelegramBo
         playlist = tmp
     else {
         playlist = new Playlist(playlistData)
+        playlist.downloaded = false
         playlist.save()
 
         userRecord.playlists!.push(playlist._id as unknown as mongoose.Schema.Types.ObjectId)
@@ -282,7 +316,6 @@ async function getDownloadMenu(chatId: string, back = false): Promise<TelegramBo
         playlistData = {
             spotifyId: p.id,
             name: p.name,
-            downloaded: false,
             owner: userRecord._id
         }
 
@@ -290,6 +323,7 @@ async function getDownloadMenu(chatId: string, back = false): Promise<TelegramBo
             playlist = tmp
         else {
             playlist = new Playlist(playlistData)
+            playlist.downloaded = false
             playlist.save()
 
             userRecord.playlists!.push(playlist._id as unknown as mongoose.Schema.Types.ObjectId)
@@ -440,6 +474,15 @@ bot.on("callback_query", async (query: CallbackQuery) => {
                         parse_mode: 'Markdown'
                     })
                 }
+            case MENUS.LOGIN:
+                {
+                    await logout(chatId)
+                    SpotifyUser.get(chatId, bot)
+                }
+            case MENUS.LOGOUT:
+                {
+                    logout(chatId)
+                }
         }
     } catch (e) {
         console.error(e)
@@ -447,7 +490,7 @@ bot.on("callback_query", async (query: CallbackQuery) => {
 
 })
 
-async function exportPlaylist(chatId: string, args: NonNullable<CommandArgs[MENUS.EXPORT_PLAYLIST]>) {
+async function exportPlaylist(chatId: string, args: NonNullable<CommandArgs[MENUS.EXPORT_PLAYLIST]>): Promise<void> {
     type Populated<T, K extends keyof T, P> = Omit<HydratedDocument<T>, K> & Record<K, HydratedDocument<P> | null>;
 
     const user = await User.findOne({ telegram_chat_id: chatId })
@@ -474,7 +517,7 @@ async function exportPlaylist(chatId: string, args: NonNullable<CommandArgs[MENU
     });
 }
 
-async function downloadPlaylist(chatId: string, args: NonNullable<CommandArgs[MENUS.DOWNLOAD_PLAYLIST]>) {
+async function downloadPlaylist(chatId: string, args: NonNullable<CommandArgs[MENUS.DOWNLOAD_PLAYLIST]>): Promise<void> {
     let user = await SpotifyUser.get(chatId, bot)
 
     let playlistData: any = { spotifyId: args.playlistId, owner: (await User.findOne({ telegram_chat_id: chatId }))?._id }

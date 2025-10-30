@@ -178,8 +178,37 @@ bot.onText(/\/help/, async (msg) => {
     }
     bot.sendMessage(chatId, description, { parse_mode: 'Markdown' });
 });
-bot.onText(/\/login/, async (msg) => { });
-bot.onText(/\/logout/, async (msg) => { });
+bot.onText(/\/login/, async (msg) => {
+    const chatId = msg.chat.id.toString();
+    try {
+        await logout(chatId);
+        SpotifyUser.get(chatId, bot);
+    }
+    catch (e) {
+        console.log(e);
+    }
+});
+bot.onText(/\/logout/, async (msg) => {
+    const chatId = msg.chat.id.toString();
+    try {
+        logout(chatId);
+    }
+    catch (e) {
+        console.log(e);
+    }
+});
+async function logout(chatId) {
+    let user = await User.findOne({ telegram_chat_id: chatId })
+        .populate("playlists")
+        .exec();
+    if (!user)
+        return;
+    for (let playlist of user.playlists) {
+        await PlaylistSong.deleteMany({ playlistId: playlist._id });
+    }
+    await Playlist.deleteMany({ owner: user._id });
+    await User.deleteOne({ telegram_chat_id: chatId });
+}
 bot.onText(/\/download/, async (msg) => {
     try {
         const chatId = msg.chat.id.toString();
@@ -207,7 +236,6 @@ async function getDownloadMenu(chatId, back = false) {
     let playlistData = {
         spotifyId: "saved",
         name: "🎵 Saved Music",
-        downloaded: false,
         owner: userRecord._id
     };
     let tmp;
@@ -216,6 +244,7 @@ async function getDownloadMenu(chatId, back = false) {
         playlist = tmp;
     else {
         playlist = new Playlist(playlistData);
+        playlist.downloaded = false;
         playlist.save();
         userRecord.playlists.push(playlist._id);
     }
@@ -230,13 +259,13 @@ async function getDownloadMenu(chatId, back = false) {
         playlistData = {
             spotifyId: p.id,
             name: p.name,
-            downloaded: false,
             owner: userRecord._id
         };
         if ((tmp = await Playlist.findOne(playlistData)))
             playlist = tmp;
         else {
             playlist = new Playlist(playlistData);
+            playlist.downloaded = false;
             playlist.save();
             userRecord.playlists.push(playlist._id);
         }
@@ -369,6 +398,15 @@ bot.on("callback_query", async (query) => {
                         },
                         parse_mode: 'Markdown'
                     });
+                }
+            case MENUS.LOGIN:
+                {
+                    await logout(chatId);
+                    SpotifyUser.get(chatId, bot);
+                }
+            case MENUS.LOGOUT:
+                {
+                    logout(chatId);
                 }
         }
     }

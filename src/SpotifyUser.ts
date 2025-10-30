@@ -107,8 +107,7 @@ class SpotifyUser {
                 reject(new Error("Login timed out"));
             }, timeoutMs);
 
-            await bot.sendMessage(chatId, "Welcome to the Spotify Downloader Bot! To get started, please log in to your Spotify account.")
-            await bot.sendMessage(chatId, "Please visit the following link to log in to Spotify and authorize the bot:\n" + SPOTIFY.SPOTIFY_REDIRECT_URI + "/login?chat_id=" + chatId)
+            await bot.sendMessage(chatId, "Visit the following link to log in to Spotify and authorize the bot:\n" + SPOTIFY.SPOTIFY_REDIRECT_URI + "/login?chat_id=" + chatId)
 
             this.pendingLogins.set(chatId, { resolve, reject, timer });
         })

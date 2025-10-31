@@ -1,23 +1,24 @@
-import TelegramBot, { CallbackQuery } from "node-telegram-bot-api";
 import path from "path"
 import mongoose, { HydratedDocument } from "mongoose";
+import { TelegramClient } from "telegram";
+import TelegramBot, { CallbackQuery } from "node-telegram-bot-api";
 
 import { TELEGRAM_BOT, DATABASE, RESOLVERS, TELEGRAM_CLIENTS } from "./secrets.js"
 import SpotifyUser from "./SpotifyUser.js"
 import { app } from "./serverInstance.js"
+import PriorityWorkerQueue from "./core/PriorityWorkerQueue.js";
 
 import DownloadResolver from "./download/DownloadResolver.js";
-import { updateMetadata } from "./metadataManager.js"
+import { DownloadTaskResult } from "./download/DownloadTask.js";
+import { updateMetadata } from "./metadata/metadataManager.js"
+
 import { ISong, Song } from "./models/Song.js";
 import { IPlaylist, Playlist } from "./models/Playlist.js";
 import { IUser, User } from "./models/User.js";
 import { IPlaylistSong, PlaylistSong } from "./models/PlaylistSong.js";
 
-import PriorityWorkerQueue from "./core/PriorityWorkerQueue.js";
 import TelegramWorker from "./telegram/TelegramWorker.js";
 import { TelegramTask, TelegramTaskBody } from "./telegram/TelegramTask.js";
-import { TelegramClient } from "telegram";
-import { DownloadTaskResult } from "./download/DownloadTask.js";
 
 const DownloadQueue = PriorityWorkerQueue<TelegramTaskBody, void, TelegramWorker>;
 type DownloadQueue = InstanceType<typeof DownloadQueue>;

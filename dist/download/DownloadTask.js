@@ -1,5 +1,5 @@
 import path from "path";
-import { updateMetadata } from "../metadataManager.js";
+import { updateMetadata } from "../metadata/metadataManager.js";
 import DownloadResolver from "./DownloadResolver.js";
 import { Song } from "../models/Song.js";
 export class DownloadTask {

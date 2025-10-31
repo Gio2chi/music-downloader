@@ -1,6 +1,6 @@
 import path from "path";
 import TaskInterface from "../core/TaskInterface.js";
-import { updateMetadata } from "../metadataManager.js";
+import { updateMetadata } from "../metadata/metadataManager.js";
 import DownloadResolver from "./DownloadResolver.js";
 import { TelegramClient } from "telegram";
 import { Song } from "../models/Song.js";

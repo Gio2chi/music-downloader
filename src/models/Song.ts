@@ -1,6 +1,6 @@
 import { Schema, model, Model, HydratedDocument } from "mongoose"
 import { fileTypeFromBuffer, fileTypeFromFile } from "file-type";
-import { Tags } from "../metadataManager";
+import { Tags } from "../metadata/metadataManager";
 
 async function fetchImage(url: string | URL) {
     const response = await fetch(url);

@@ -1,5 +1,5 @@
 import { Schema, Model, HydratedDocument } from "mongoose";
-import { Tags } from "../metadataManager";
+import { Tags } from "../metadata/metadataManager";
 export interface IAlbum {
     name: string;
     spotify_id: string;

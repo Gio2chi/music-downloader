@@ -20,7 +20,7 @@ import { IPlaylistSong, PlaylistSong } from "./models/PlaylistSong.js";
 import TelegramWorker from "./telegram/TelegramWorker.js";
 import { TelegramTask, TelegramTaskBody } from "./telegram/TelegramTask.js";
 
-const DownloadQueue = PriorityWorkerQueue<TelegramTaskBody, void, TelegramWorker>;
+const DownloadQueue = PriorityWorkerQueue<void, TelegramTask, TelegramWorker>;
 type DownloadQueue = InstanceType<typeof DownloadQueue>;
 
 let tgWorkers: TelegramWorker[] = TELEGRAM_CLIENTS.map((client: TelegramClient) => new TelegramWorker(client, RESOLVERS))
@@ -229,7 +229,7 @@ bot.onText(/\/login/, async (msg: TelegramBot.Message) => {
         await logout(chatId)
 
         SpotifyUser.get(chatId, bot)
-    } catch (e) { 
+    } catch (e) {
         console.log(e)
     }
 })
@@ -239,8 +239,8 @@ bot.onText(/\/logout/, async (msg: TelegramBot.Message) => {
 
     try {
         logout(chatId)
-    } catch (e) { 
-        console.log(e) 
+    } catch (e) {
+        console.log(e)
     }
 })
 
@@ -559,49 +559,53 @@ async function downloadPlaylist(chatId: string, args: NonNullable<CommandArgs[ME
         downloadQueue.addTask(new TelegramTask({
             track: song.track,
             added_at: new Date(song.added_at),
-            onSuccess: async (result: DownloadTaskResult) => {
-                let sng = Song.parse(song.track!)
-                sng.filename = result.filename
-                await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await sng.toTags())
-                sng.save()
+            handlers: {
+                onSuccess: async (result: DownloadTaskResult) => {
+                    let sng = Song.parse(song.track!)
+                    sng.filename = result.filename
+                    await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await sng.toTags())
+                    sng.save()
 
-                let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id })
-                if (!record)
-                    (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save()
+                    let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id })
+                    if (!record)
+                        (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save()
 
-                console.log("✅ Saved:", song.track!.name);
-                count++;
-                if (count >= tracks.length)
-                    bot.sendMessage(chatId, `✅ playlist downloaded`)
-            },
-            // try another time
-            onFailure: async () => {
-                downloadQueue.addTask(new TelegramTask({
-                    track: song.track!,
-                    added_at: new Date(song.added_at),
-                    onSuccess: async (result: DownloadTaskResult) => {
-                        let sng = Song.parse(song.track!)
-                        sng.filename = result.filename
-                        await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await sng.toTags())
-                        sng.save()
+                    console.log("✅ Saved:", song.track!.name);
+                    count++;
+                    if (count >= tracks.length)
+                        bot.sendMessage(chatId, `✅ playlist downloaded`)
+                },
+                // try another time
+                onFailure: async () => {
+                    downloadQueue.addTask(new TelegramTask({
+                        track: song.track!,
+                        added_at: new Date(song.added_at),
+                        handlers: {
+                            onSuccess: async (result: DownloadTaskResult) => {
+                                let sng = Song.parse(song.track!)
+                                sng.filename = result.filename
+                                await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await sng.toTags())
+                                sng.save()
 
-                        let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id })
-                        if (!record)
-                            (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save()
+                                let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id })
+                                if (!record)
+                                    (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save()
 
-                        console.log("✅ Saved:", song.track!.name);
-                        count++;
-                        if (count >= tracks.length)
-                            bot.sendMessage(chatId, `✅ playlist downloaded`)
-                    },
-                    onFailure: async () => {
-                        bot.sendMessage(chatId, `❌ Failed to download: ${song.track!.name}`)
-                        console.log(`❌ Failed to download: ${song.track!.name}`)
-                        count++;
-                        if (count >= tracks.length)
-                            bot.sendMessage(chatId, `✅ playlist downloaded`)
-                    }
-                }))
+                                console.log("✅ Saved:", song.track!.name);
+                                count++;
+                                if (count >= tracks.length)
+                                    bot.sendMessage(chatId, `✅ playlist downloaded`)
+                            },
+                            onFailure: async () => {
+                                bot.sendMessage(chatId, `❌ Failed to download: ${song.track!.name}`)
+                                console.log(`❌ Failed to download: ${song.track!.name}`)
+                                count++;
+                                if (count >= tracks.length)
+                                    bot.sendMessage(chatId, `✅ playlist downloaded`)
+                            }
+                        }
+                    }))
+                }
             }
         }))
     }

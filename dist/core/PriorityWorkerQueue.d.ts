@@ -5,17 +5,17 @@ import WorkerInterface from "./WorkerInterface";
  * Each task is first attempted by an available worker in the lowest layer; if it fails, it escalates to the next layer.
  * Workers within the same layer process tasks in parallel, while escalation between layers happens sequentially.
  *
- * @param T body of the task, aka variables needed to solve the task
- * @param R the result type after processing the task
- * @param W worker aka the entity that proceesses the task
+ * @template TResult the result type after processing the task
+ * @template TTask task aka the entity to be processed
+ * @template TWorker worker aka the entity that proceesses the task
  */
-export default class PriorityWorkerQueue<TBody, TResult, TWorker extends WorkerInterface<TBody, TResult>> {
+export default class PriorityWorkerQueue<TResult, TTask extends TaskInterface<TResult>, TWorker extends WorkerInterface<TResult, TTask>> {
     private workers;
     private queues;
     constructor(workers: TWorker[]);
     private groupByPriority;
     /** Add a new task → starts in layer 0 */
-    addTask(task: TaskInterface<TBody, TResult>): void;
+    addTask(task: TTask): void;
     /** Try to assign tasks for a specific layer */
     private dispatch;
     private processTask;

@@ -11,7 +11,7 @@ export default class TelegramWorker {
         this.songQ = new SongQueue(songWorkers);
     }
     async run(task) {
-        let body = { ...task.body, client: this.client };
-        this.songQ.addTask(new DownloadTask(body, task.body.onSuccess, task.body.onFailure));
+        let body = { ...task, client: this.client };
+        this.songQ.addTask(new DownloadTask(body, task.handlers.onSuccess, task.handlers.onFailure));
     }
 }

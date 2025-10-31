@@ -1,6 +1,6 @@
-import TelegramBot from "node-telegram-bot-api";
 import path from "path";
 import mongoose from "mongoose";
+import TelegramBot from "node-telegram-bot-api";
 import { TELEGRAM_BOT, DATABASE, RESOLVERS, TELEGRAM_CLIENTS } from "./secrets.js";
 import SpotifyUser from "./SpotifyUser.js";
 import { app } from "./serverInstance.js";
@@ -468,45 +468,49 @@ async function downloadPlaylist(chatId, args) {
         downloadQueue.addTask(new TelegramTask({
             track: song.track,
             added_at: new Date(song.added_at),
-            onSuccess: async (result) => {
-                let sng = Song.parse(song.track);
-                sng.filename = result.filename;
-                await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await sng.toTags());
-                sng.save();
-                let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id });
-                if (!record)
-                    (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save();
-                console.log("✅ Saved:", song.track.name);
-                count++;
-                if (count >= tracks.length)
-                    bot.sendMessage(chatId, `✅ playlist downloaded`);
-            },
-            // try another time
-            onFailure: async () => {
-                downloadQueue.addTask(new TelegramTask({
-                    track: song.track,
-                    added_at: new Date(song.added_at),
-                    onSuccess: async (result) => {
-                        let sng = Song.parse(song.track);
-                        sng.filename = result.filename;
-                        await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await sng.toTags());
-                        sng.save();
-                        let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id });
-                        if (!record)
-                            (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save();
-                        console.log("✅ Saved:", song.track.name);
-                        count++;
-                        if (count >= tracks.length)
-                            bot.sendMessage(chatId, `✅ playlist downloaded`);
-                    },
-                    onFailure: async () => {
-                        bot.sendMessage(chatId, `❌ Failed to download: ${song.track.name}`);
-                        console.log(`❌ Failed to download: ${song.track.name}`);
-                        count++;
-                        if (count >= tracks.length)
-                            bot.sendMessage(chatId, `✅ playlist downloaded`);
-                    }
-                }));
+            handlers: {
+                onSuccess: async (result) => {
+                    let sng = Song.parse(song.track);
+                    sng.filename = result.filename;
+                    await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await sng.toTags());
+                    sng.save();
+                    let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id });
+                    if (!record)
+                        (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save();
+                    console.log("✅ Saved:", song.track.name);
+                    count++;
+                    if (count >= tracks.length)
+                        bot.sendMessage(chatId, `✅ playlist downloaded`);
+                },
+                // try another time
+                onFailure: async () => {
+                    downloadQueue.addTask(new TelegramTask({
+                        track: song.track,
+                        added_at: new Date(song.added_at),
+                        handlers: {
+                            onSuccess: async (result) => {
+                                let sng = Song.parse(song.track);
+                                sng.filename = result.filename;
+                                await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await sng.toTags());
+                                sng.save();
+                                let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id });
+                                if (!record)
+                                    (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save();
+                                console.log("✅ Saved:", song.track.name);
+                                count++;
+                                if (count >= tracks.length)
+                                    bot.sendMessage(chatId, `✅ playlist downloaded`);
+                            },
+                            onFailure: async () => {
+                                bot.sendMessage(chatId, `❌ Failed to download: ${song.track.name}`);
+                                console.log(`❌ Failed to download: ${song.track.name}`);
+                                count++;
+                                if (count >= tracks.length)
+                                    bot.sendMessage(chatId, `✅ playlist downloaded`);
+                            }
+                        }
+                    }));
+                }
             }
         }));
     }

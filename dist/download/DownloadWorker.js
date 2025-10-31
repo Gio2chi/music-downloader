@@ -6,7 +6,7 @@ export default class DownloadWorker {
     }
     async run(task) {
         this.resolver.startSession();
-        let filename = await this.resolver.downloadSong(task.body.client, task.body.track.external_urls.spotify, task.body.filename);
+        let filename = await this.resolver.downloadSong(task.client, task.track.external_urls.spotify, task.filename);
         return { filename };
     }
 }

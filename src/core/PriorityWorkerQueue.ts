@@ -6,13 +6,13 @@ import WorkerInterface from "./WorkerInterface"
  * Each task is first attempted by an available worker in the lowest layer; if it fails, it escalates to the next layer.
  * Workers within the same layer process tasks in parallel, while escalation between layers happens sequentially.
  * 
- * @param T body of the task, aka variables needed to solve the task
- * @param R the result type after processing the task
- * @param W worker aka the entity that proceesses the task 
+ * @template TResult the result type after processing the task
+ * @template TTask task aka the entity to be processed
+ * @template TWorker worker aka the entity that proceesses the task 
  */
-export default class PriorityWorkerQueue<TBody, TResult, TWorker extends WorkerInterface<TBody, TResult>> {
+export default class PriorityWorkerQueue<TResult, TTask extends TaskInterface<TResult>, TWorker extends WorkerInterface<TResult, TTask>> {
     private workers: TWorker[][]
-    private queues: TaskInterface<TBody, TResult>[][]
+    private queues: TTask[][]
 
     constructor(workers: TWorker[]) {
         this.workers = this.groupByPriority(workers)
@@ -31,7 +31,7 @@ export default class PriorityWorkerQueue<TBody, TResult, TWorker extends WorkerI
     }
 
     /** Add a new task → starts in layer 0 */
-    public addTask(task: TaskInterface<TBody, TResult>) {
+    public addTask(task: TTask) {
         this.queues[0].push(task)
         this.dispatch(0)
     }
@@ -49,7 +49,7 @@ export default class PriorityWorkerQueue<TBody, TResult, TWorker extends WorkerI
         }
     }
 
-    private async processTask(task: TaskInterface<TBody, TResult>, layer: number, worker: TWorker) {
+    private async processTask(task: TTask, layer: number, worker: TWorker) {
         worker.busy = true
         try {
             let result = await worker.run(task)

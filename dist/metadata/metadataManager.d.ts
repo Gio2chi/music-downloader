@@ -1,19 +1,5 @@
-export type Tags = {
-    title?: string;
-    artists?: string[];
-    album?: string;
-    year?: string;
-    genres?: string[];
-    trackNumber?: string;
-    composer?: string;
-    publisher?: string;
-    lyrics?: string;
-    cover?: {
-        mime: string;
-        buffer: Buffer;
-    };
-};
+import { TExtendedTags } from "../types/index.js";
 /**
  * Update metadata for MP3 & FLAC files..
  */
-export declare function updateMetadata(filePath: string, tags: Tags): Promise<void>;
+export declare function updateMetadata(filePath: string, tags: TExtendedTags): Promise<void>;

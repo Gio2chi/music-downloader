@@ -16,7 +16,6 @@ class DownloadResolver {
     private count = 0;
 
     private priority: number
-    private connecting: any;
     private timer: NodeJS.Timeout | undefined;
 
     constructor(

@@ -1,57 +1,38 @@
 import { Schema, Model, HydratedDocument } from "mongoose";
-import { Tags } from "../metadata/metadataManager";
-export interface IAlbum {
-    name: string;
-    spotify_id: string;
-    released_at: Date;
-    cover_url: string;
-}
-export declare const AlbumSchema: Schema<IAlbum, Model<IAlbum, any, any, any, import("mongoose").Document<unknown, any, IAlbum, any, {}> & IAlbum & {
+import { TAlbum, TArtist, TLyric, TSong, TSongMethods } from "../types/index.js";
+export declare const AlbumSchema: Schema<TAlbum, Model<TAlbum, any, any, any, import("mongoose").Document<unknown, any, TAlbum, any, {}> & TAlbum & {
     _id: import("mongoose").Types.ObjectId;
 } & {
     __v: number;
-}, any>, {}, {}, {}, {}, import("mongoose").DefaultSchemaOptions, IAlbum, import("mongoose").Document<unknown, {}, import("mongoose").FlatRecord<IAlbum>, {}, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & import("mongoose").FlatRecord<IAlbum> & {
+}, any>, {}, {}, {}, {}, import("mongoose").DefaultSchemaOptions, TAlbum, import("mongoose").Document<unknown, {}, import("mongoose").FlatRecord<TAlbum>, {}, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & import("mongoose").FlatRecord<TAlbum> & {
     _id: import("mongoose").Types.ObjectId;
 } & {
     __v: number;
 }>;
-export interface IArtist {
-    name: string;
-    spotify_id: string;
-    img_url?: string;
-}
-export declare const ArtistSchema: Schema<IArtist, Model<IArtist, any, any, any, import("mongoose").Document<unknown, any, IArtist, any, {}> & IArtist & {
+export declare const ArtistSchema: Schema<TArtist, Model<TArtist, any, any, any, import("mongoose").Document<unknown, any, TArtist, any, {}> & TArtist & {
     _id: import("mongoose").Types.ObjectId;
 } & {
     __v: number;
-}, any>, {}, {}, {}, {}, import("mongoose").DefaultSchemaOptions, IArtist, import("mongoose").Document<unknown, {}, import("mongoose").FlatRecord<IArtist>, {}, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & import("mongoose").FlatRecord<IArtist> & {
+}, any>, {}, {}, {}, {}, import("mongoose").DefaultSchemaOptions, TArtist, import("mongoose").Document<unknown, {}, import("mongoose").FlatRecord<TArtist>, {}, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & import("mongoose").FlatRecord<TArtist> & {
     _id: import("mongoose").Types.ObjectId;
 } & {
     __v: number;
 }>;
-interface ISongMethods {
-    toTags(): Promise<Tags>;
-}
-interface ISongModel extends Model<ISong, {}, ISongMethods> {
-    parse(track: SpotifyApi.TrackObjectFull): HydratedDocument<ISong, ISongMethods>;
-}
-export interface ISong {
-    filename: string;
-    artists: IArtist[];
-    title: string;
-    album: IAlbum;
-    released_at: Date;
-    genres: string[];
-    track_number: number;
-    lyrics?: string;
-    cover_url?: string;
-    spotify_id: string;
-    isrc: string;
-}
-export declare const SongSchema: Schema<ISong, ISongModel, ISongMethods, {}, {}, {}, import("mongoose").DefaultSchemaOptions, ISong, import("mongoose").Document<unknown, {}, import("mongoose").FlatRecord<ISong>, {}, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<import("mongoose").FlatRecord<ISong> & {
+export declare const LyricSchema: Schema<TLyric, Model<TLyric, any, any, any, import("mongoose").Document<unknown, any, TLyric, any, {}> & TLyric & {
     _id: import("mongoose").Types.ObjectId;
 } & {
     __v: number;
-}, "toTags"> & ISongMethods>;
+}, any>, {}, {}, {}, {}, import("mongoose").DefaultSchemaOptions, TLyric, import("mongoose").Document<unknown, {}, import("mongoose").FlatRecord<TLyric>, {}, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & import("mongoose").FlatRecord<TLyric> & {
+    _id: import("mongoose").Types.ObjectId;
+} & {
+    __v: number;
+}>;
+export interface ISongModel extends Model<TSong, {}, TSongMethods> {
+    parse(track: SpotifyApi.TrackObjectFull): HydratedDocument<TSong, TSongMethods>;
+}
+export declare const SongSchema: Schema<TSong, ISongModel, TSongMethods, {}, {}, {}, import("mongoose").DefaultSchemaOptions, TSong, import("mongoose").Document<unknown, {}, import("mongoose").FlatRecord<TSong>, {}, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<import("mongoose").FlatRecord<TSong> & {
+    _id: import("mongoose").Types.ObjectId;
+} & {
+    __v: number;
+}, "toTags"> & TSongMethods>;
 export declare const Song: ISongModel;
-export {};

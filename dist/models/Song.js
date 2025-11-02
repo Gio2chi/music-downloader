@@ -1,10 +1,4 @@
 import { Schema, model } from "mongoose";
-import { fileTypeFromBuffer } from "file-type";
-async function fetchImage(url) {
-    const response = await fetch(url);
-    const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(new Uint8Array(arrayBuffer));
-}
 export const AlbumSchema = new Schema({
     name: { type: String, required: true },
     spotify_id: { type: String, required: true },
@@ -16,6 +10,10 @@ export const ArtistSchema = new Schema({
     spotify_id: { type: String, required: true },
     img_url: String
 }, { autoIndex: false });
+export const LyricSchema = new Schema({
+    synced: Schema.Types.Boolean,
+    lines: { type: [{ timestamp: Number, text: String }] }
+});
 export const SongSchema = new Schema({
     filename: { type: String, required: true },
     artists: [ArtistSchema],
@@ -24,40 +22,26 @@ export const SongSchema = new Schema({
     released_at: { type: Date, required: true },
     genres: { type: [String], required: true, index: true },
     track_number: { type: Number, required: true },
-    lyrics: String,
+    lyric: LyricSchema,
+    duration: { type: Number, required: true },
     cover_url: String,
     spotify_id: { type: String, required: true, index: true },
     isrc: { type: String, required: true, index: true }
 }, {
     methods: {
-        async toTags() {
-            let cover = undefined;
-            let err = undefined;
-            try {
-                let cover_url = this.album.cover_url;
-                if (cover_url == undefined)
-                    throw new Error("no cover found");
-                let buffer = await fetchImage(cover_url);
-                let mime = (await fileTypeFromBuffer(buffer)).mime;
-                if (mime !== 'image/jpeg' && mime !== 'image/png') {
-                    throw new Error(`only support image/jpeg and image/png picture temporarily, current import ${mime}`);
-                }
-                cover = { buffer, mime };
-            }
-            catch (e) {
-                if (e instanceof Error)
-                    err = e.message;
-            }
+        toTags() {
             return {
-                spotifyId: this.spotify_id,
+                filename: this.filename,
                 title: this.title,
+                composer: this.artists[0].name,
                 artists: this.artists.map(artist => artist.name),
                 album: this.album.name,
-                year: this.album.released_at.toString(),
-                trackNumber: this.track_number.toString(),
-                isrc: this.isrc,
-                cover,
-                spotifyUrl: "https://open.spotify.com/track/" + this.spotify_id,
+                year: this.album.released_at.getFullYear(),
+                releaseDate: this.released_at,
+                trackNumber: this.track_number,
+                ids: { isrc: this.isrc, spotify: this.spotify_id },
+                cover: this.cover_url ? { url: this.cover_url } : undefined,
+                duration: this.duration,
             };
         }
     },
@@ -73,6 +57,7 @@ export const SongSchema = new Schema({
                     released_at: track.album.release_date,
                     cover_url: track.album.images.find(img => img.height === 640)?.url ?? track.album.images[0]?.url
                 },
+                duration: track.duration_ms,
                 released_at: track.album.release_date,
                 track_number: track.track_number,
                 isrc: track.external_ids.isrc

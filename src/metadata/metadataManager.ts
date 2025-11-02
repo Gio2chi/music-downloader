@@ -1,54 +1,67 @@
 import * as mm from "music-metadata";
+import { fileTypeFromBuffer, fileTypeFromFile } from "file-type";
 import NodeID3 from "node-id3";
 import Metaflac from 'metaflac-js';
+import { TExtendedTags } from "../types/index.js";
 
-export type Tags = {
-    title?: string,
-    artists?: string[],
-    album?: string,
-    year?: string,
-    genres?: string[],
-    trackNumber?: string,
-    composer?: string,
-    publisher?: string,
-    lyrics?: string,
-    cover?: {
-        mime: string,
-        buffer: Buffer
-    }
+async function fetchImage(url: string | URL) {
+  const response = await fetch(url);
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(new Uint8Array(arrayBuffer));
 }
 
 /**
  * Update metadata for MP3 & FLAC files..
  */
-export async function updateMetadata(filePath: string, tags: Tags) {
+export async function updateMetadata(filePath: string, tags: TExtendedTags) {
   // Detect file type
   const metadata = await mm.parseFile(filePath);
   const format = metadata.format.container!.toLowerCase();
 
+  let buffer: Buffer<ArrayBuffer> | undefined
+  let mime: string | undefined
+  try {
+
+    if (tags.cover == undefined)
+      throw new Error("no cover found")
+
+    if ('url' in tags.cover) {
+      buffer = await fetchImage(tags.cover.url)
+      mime = (await fileTypeFromBuffer(buffer))!.mime
+    } else {
+      mime = tags.cover.mime
+      buffer = tags.cover.buffer
+    }
+    if (mime !== 'image/jpeg' && mime !== 'image/png') {
+      throw new Error(`only support image/jpeg and image/png picture temporarily, current import ${mime}`);
+    }
+
+  } catch (e) {}
+
   if (format.includes("mpeg")) {
     // ----- MP3 -----
-    const id3Tags = {
+    const id3Tags: NodeID3.Tags = {
       title: tags.title,        // Title
       artist: Array.isArray(tags.artists) ? tags.artists.join(";") : tags.artists, // Artists
       album: tags.album,        // Album
-      year: tags.year,          // Year
+      year: tags.year?.toString(),          // Year
+      releaseTime: tags.releaseDate?.toDateString(),
       genre: tags.genres ? tags.genres.join(";") : undefined, // Genre
-      trackNumber: tags.trackNumber,  // Track number
+      trackNumber: tags.trackNumber?.toString(),  // Track number
       composer: tags.composer,     // Composer
       publisher: tags.publisher,    // Publisher
       unsynchronisedLyrics: tags.lyrics
         ? { language: "eng", text: tags.lyrics }
         : undefined,
-      image: tags.cover
-        ? {
-          mime: tags.cover.mime,
+      image: (mime && buffer) ?
+        {
+          mime,
           type: {
             id: 3,
             name: "front cover"
           },
           description: "Album Art",
-          imageBuffer: tags.cover.buffer
+          imageBuffer: buffer
         }
         : undefined
     };
@@ -106,17 +119,17 @@ export async function updateMetadata(filePath: string, tags: Tags) {
     }
 
     // Cover art
-    if (tags.cover) {
+    if (mime && buffer) {
       flac.pictures = []
       flac.picturesDatas = []
       flac.picturesSpecs = []
 
       const spec = flac.buildSpecification({
-        mime: tags.cover.mime,
+        mime,
         width: 640,
         height: 640,
       });
-      flac.pictures.push(flac.buildPictureBlock(await tags.cover.buffer, spec));
+      flac.pictures.push(flac.buildPictureBlock(buffer, spec));
       flac.picturesSpecs.push(spec);
     }
 

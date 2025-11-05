@@ -18,7 +18,8 @@ By using this software, you agree that the author assumes **no liability** for m
 - ✅ Browse and select **playlists** to download  
 - ✅ Server downloads songs in **FLAC (lossless)** or **MP3 (compressed)** quality  
 - ✅ Metadata automatically fetched and embedded from **Spotify**:
-  - Title, artist(s), album, cover art, release date, genre (if available)  
+  - Title, artist(s), album, cover art, release date, genre (if available)
+- ✅ Lyrics automatically fetched from **lrclib**:
 - ✅ Telegram-based control – no need for a separate UI  
 - ✅ Unique filenames and proper tagging for easy library management  
 

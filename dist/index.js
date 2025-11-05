@@ -453,6 +453,8 @@ async function downloadPlaylist(chatId, args) {
     for (const song of tracks) {
         if (song.track == null) {
             count++;
+            if (count >= tracks.length)
+                bot.sendMessage(chatId, `✅ downloaded playlist: ${playlist.name}`);
             continue;
         }
         let tmp = await Song.findOne({ spotify_id: song.track.id });
@@ -464,11 +466,15 @@ async function downloadPlaylist(chatId, args) {
             if (!tmp.lyric)
                 lyricQueue.addTask(new LyricTask(tmp.toTags()));
             count++;
+            if (count >= tracks.length)
+                bot.sendMessage(chatId, `✅ downloaded playlist: ${playlist.name}`);
             continue;
         }
         if (song.track.external_ids.isrc == undefined) {
             count++;
             bot.sendMessage(chatId, `❌ Failed to download: ${song.track.name} ${song.track.external_urls.spotify}\n metadata not available.`);
+            if (count >= tracks.length)
+                bot.sendMessage(chatId, `✅ downloaded playlist: ${playlist.name}`);
             continue;
         }
         downloadQueue.addTask(new TelegramTask({
@@ -488,7 +494,7 @@ async function downloadPlaylist(chatId, args) {
                         lyricQueue.addTask(new LyricTask(sng.toTags()));
                     count++;
                     if (count >= tracks.length)
-                        bot.sendMessage(chatId, `✅ playlist downloaded`);
+                        bot.sendMessage(chatId, `✅ downloaded playlist: ${playlist.name}`);
                 },
                 // try another time
                 onFailure: async () => {
@@ -499,7 +505,7 @@ async function downloadPlaylist(chatId, args) {
                             onSuccess: async (result) => {
                                 let sng = Song.parse(song.track);
                                 sng.filename = result.filename;
-                                await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await sng.toTags());
+                                await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), sng.toTags());
                                 sng.save();
                                 let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id });
                                 if (!record)
@@ -509,14 +515,14 @@ async function downloadPlaylist(chatId, args) {
                                     lyricQueue.addTask(new LyricTask(sng.toTags()));
                                 count++;
                                 if (count >= tracks.length)
-                                    bot.sendMessage(chatId, `✅ playlist downloaded`);
+                                    bot.sendMessage(chatId, `✅ downloaded playlist: ${playlist.name}`);
                             },
                             onFailure: async () => {
                                 bot.sendMessage(chatId, `❌ Failed to download: ${song.track.name}`);
                                 console.log(`❌ Failed to download: ${song.track.name}`);
                                 count++;
                                 if (count >= tracks.length)
-                                    bot.sendMessage(chatId, `✅ playlist downloaded`);
+                                    bot.sendMessage(chatId, `✅ downloaded playlist: ${playlist.name}`);
                             }
                         }
                     }));

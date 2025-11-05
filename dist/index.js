@@ -13,7 +13,11 @@ import { User } from "./models/User.js";
 import { PlaylistSong } from "./models/PlaylistSong.js";
 import TelegramWorker from "./telegram/TelegramWorker.js";
 import { TelegramTask } from "./telegram/TelegramTask.js";
+import { LyricTask } from "./metadata/LyricTask.js";
+import { lrclibWorker } from "./metadata/lyricWorkers/lrclib.js";
 const DownloadQueue = (PriorityWorkerQueue);
+const LyricQueue = (PriorityWorkerQueue);
+let lyricQueue = new LyricQueue([new lrclibWorker()]);
 let tgWorkers = TELEGRAM_CLIENTS.map((client) => new TelegramWorker(client, RESOLVERS));
 let downloadQueue = new DownloadQueue(tgWorkers);
 const bot = new TelegramBot(TELEGRAM_BOT.TELEGRAM_BOT_TOKEN);
@@ -451,12 +455,14 @@ async function downloadPlaylist(chatId, args) {
             count++;
             continue;
         }
-        let tmp;
-        if (tmp = await Song.findOne({ spotify_id: song.track.id })) {
+        let tmp = await Song.findOne({ spotify_id: song.track.id });
+        if (tmp) {
             console.log("Skipping (already downloaded): " + song.track.name);
             let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: tmp.id });
             if (!record)
                 (new PlaylistSong({ playlistId: playlist.id, songId: tmp.id, added_at: new Date(song.added_at) })).save();
+            if (!tmp.lyric)
+                lyricQueue.addTask(new LyricTask(tmp.toTags()));
             count++;
             continue;
         }
@@ -472,12 +478,14 @@ async function downloadPlaylist(chatId, args) {
                 onSuccess: async (result) => {
                     let sng = Song.parse(song.track);
                     sng.filename = result.filename;
-                    await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await sng.toTags());
+                    await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), sng.toTags());
                     sng.save();
                     let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id });
                     if (!record)
                         (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save();
                     console.log("✅ Saved:", song.track.name);
+                    if (!sng.lyric)
+                        lyricQueue.addTask(new LyricTask(sng.toTags()));
                     count++;
                     if (count >= tracks.length)
                         bot.sendMessage(chatId, `✅ playlist downloaded`);
@@ -497,6 +505,8 @@ async function downloadPlaylist(chatId, args) {
                                 if (!record)
                                     (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save();
                                 console.log("✅ Saved:", song.track.name);
+                                if (!sng.lyric)
+                                    lyricQueue.addTask(new LyricTask(sng.toTags()));
                                 count++;
                                 if (count >= tracks.length)
                                     bot.sendMessage(chatId, `✅ playlist downloaded`);

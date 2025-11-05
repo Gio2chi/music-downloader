@@ -15,6 +15,7 @@ export const ArtistSchema = new Schema<TArtist>({
 }, { autoIndex: false })
 
 export const LyricSchema = new Schema<TLyric>({
+    instrumental: { type: Schema.Types.Boolean, default: false },
     synced: Schema.Types.Boolean,
     lines: { type: [{ timestamp: Number, text: String }] }
 })
@@ -46,10 +47,10 @@ export const SongSchema = new Schema<TSong, ISongModel, TSongMethods>({
                 artists: this.artists.map(artist => artist.name),
                 album: this.album.name,
                 year: this.album.released_at.getFullYear(),
-                releaseDate: this.released_at,
+                released_at: this.released_at,
                 trackNumber: this.track_number,
                 ids: { isrc: this.isrc, spotify: this.spotify_id },
-                cover: this.cover_url? { url: this.cover_url }: undefined,
+                cover: this.cover_url ? { url: this.cover_url } : undefined,
                 duration: this.duration,
             }
         }

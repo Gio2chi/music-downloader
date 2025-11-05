@@ -39,7 +39,7 @@ export async function updateMetadata(filePath, tags) {
             artist: Array.isArray(tags.artists) ? tags.artists.join(";") : tags.artists, // Artists
             album: tags.album, // Album
             year: tags.year?.toString(), // Year
-            releaseTime: tags.releaseDate?.toDateString(),
+            releaseTime: tags.released_at?.toDateString(),
             genre: tags.genres ? tags.genres.join(";") : undefined, // Genre
             trackNumber: tags.trackNumber?.toString(), // Track number
             composer: tags.composer, // Composer

@@ -12,16 +12,25 @@ import DownloadResolver from "./download/DownloadResolver.js";
 import { DownloadTaskResult } from "./download/DownloadTask.js";
 import { updateMetadata } from "./metadata/metadataManager.js"
 
-import { ISong, Song } from "./models/Song.js";
+import { Song } from "./models/Song.js";
+import { TLyricTaskResult, TSong } from "./types/index.js"
 import { IPlaylist, Playlist } from "./models/Playlist.js";
 import { IUser, User } from "./models/User.js";
 import { IPlaylistSong, PlaylistSong } from "./models/PlaylistSong.js";
 
 import TelegramWorker from "./telegram/TelegramWorker.js";
-import { TelegramTask, TelegramTaskBody } from "./telegram/TelegramTask.js";
+import { TelegramTask } from "./telegram/TelegramTask.js";
+import { LyricWorkerInterface } from "./metadata/LyricWorkerInterface.js";
+import { LyricTask } from "./metadata/LyricTask.js";
+import { lrclibWorker } from "./metadata/lyricWorkers/lrclib.js";
 
 const DownloadQueue = PriorityWorkerQueue<void, TelegramTask, TelegramWorker>;
 type DownloadQueue = InstanceType<typeof DownloadQueue>;
+
+const LyricQueue = PriorityWorkerQueue<TLyricTaskResult, LyricTask, LyricWorkerInterface>
+type LyricQueue = InstanceType<typeof LyricQueue>
+
+let lyricQueue = new LyricQueue([new lrclibWorker()])
 
 let tgWorkers: TelegramWorker[] = TELEGRAM_CLIENTS.map((client: TelegramClient) => new TelegramWorker(client, RESOLVERS))
 let downloadQueue = new DownloadQueue(tgWorkers)
@@ -498,7 +507,7 @@ async function exportPlaylist(chatId: string, args: NonNullable<CommandArgs[MENU
     const playlist = (await Playlist.findOne({ spotifyId: args.playlistId, owner: user!._id }))!
     const playlistSongs = await PlaylistSong.find({ playlistId: playlist._id })
         .populate("songId")
-        .exec() as unknown as Populated<IPlaylistSong, 'songId', ISong>[];
+        .exec() as unknown as Populated<IPlaylistSong, 'songId', TSong>[];
 
     let rawData = "#EXTM3U\n#PLAYLIST:" + playlist.name + "\n"
     for (let song of playlistSongs.sort((a, b) => b.added_at.getTime() - a.added_at.getTime())) {
@@ -540,12 +549,16 @@ async function downloadPlaylist(chatId: string, args: NonNullable<CommandArgs[ME
             continue
         }
 
-        let tmp: any
-        if (tmp = await Song.findOne({ spotify_id: song.track.id })) {
+        let tmp = await Song.findOne({ spotify_id: song.track.id })
+        if (tmp) {
             console.log("Skipping (already downloaded): " + song.track.name)
             let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: tmp.id })
             if (!record)
                 (new PlaylistSong({ playlistId: playlist.id, songId: tmp.id, added_at: new Date(song.added_at) })).save()
+
+            if (!tmp.lyric)
+                lyricQueue.addTask(new LyricTask(tmp.toTags()))
+
             count++;
             continue;
         }
@@ -563,7 +576,7 @@ async function downloadPlaylist(chatId: string, args: NonNullable<CommandArgs[ME
                 onSuccess: async (result: DownloadTaskResult) => {
                     let sng = Song.parse(song.track!)
                     sng.filename = result.filename
-                    await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), await sng.toTags())
+                    await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), sng.toTags())
                     sng.save()
 
                     let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id })
@@ -571,6 +584,10 @@ async function downloadPlaylist(chatId: string, args: NonNullable<CommandArgs[ME
                         (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save()
 
                     console.log("✅ Saved:", song.track!.name);
+
+                    if (!sng.lyric)
+                        lyricQueue.addTask(new LyricTask(sng.toTags()))
+
                     count++;
                     if (count >= tracks.length)
                         bot.sendMessage(chatId, `✅ playlist downloaded`)
@@ -592,6 +609,10 @@ async function downloadPlaylist(chatId: string, args: NonNullable<CommandArgs[ME
                                     (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save()
 
                                 console.log("✅ Saved:", song.track!.name);
+
+                                if (!sng.lyric)
+                                    lyricQueue.addTask(new LyricTask(sng.toTags()))
+
                                 count++;
                                 if (count >= tracks.length)
                                     bot.sendMessage(chatId, `✅ playlist downloaded`)

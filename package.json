@@ -16,6 +16,7 @@
     "express-session": "^1.18.2",
     "file-type": "^21.0.0",
     "input": "^1.0.1",
+    "lrclib-api": "^2.0.4",
     "metaflac-js": "^1.0.5",
     "mongoose": "^8.19.0",
     "music-metadata": "^11.9.0",

@@ -4,7 +4,7 @@ export type TBasicTags = {
     artists?: string[],
     album?: string,
     year?: number,
-    releaseDate?: Date,
+    released_at?: Date,
     trackNumber?: number,
     duration?: number,
 }

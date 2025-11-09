@@ -3,6 +3,7 @@ import { fileTypeFromBuffer } from "file-type";
 import NodeID3 from "node-id3";
 import Metaflac from 'metaflac-js';
 import { TExtendedTags } from "../../types/index.js";
+import { MetadataErrors } from "../../errors/index.js";
 
 async function fetchImage(url: string | URL) {
     const response = await fetch(url);
@@ -23,7 +24,7 @@ export async function updateMetadata(filePath: string, tags: TExtendedTags) {
     try {
 
         if (tags.cover == undefined)
-            throw new Error("no cover found")
+            throw new MetadataErrors.NoCoverFoundError()
 
         if ('url' in tags.cover) {
             buffer = await fetchImage(tags.cover.url)
@@ -33,10 +34,13 @@ export async function updateMetadata(filePath: string, tags: TExtendedTags) {
             buffer = tags.cover.buffer
         }
         if (mime !== 'image/jpeg' && mime !== 'image/png') {
-            throw new Error(`only support image/jpeg and image/png picture temporarily, current import ${mime}`);
+            throw new MetadataErrors.UnsupportedMimeTypeError();
         }
 
-    } catch (e) { }
+    } catch (e) {
+        if(e instanceof MetadataErrors.UnsupportedMimeTypeError)
+            console.log(e)
+    }
 
     if (format.includes("mpeg")) {
         // ----- MP3 -----
@@ -134,7 +138,7 @@ export async function updateMetadata(filePath: string, tags: TExtendedTags) {
 
         flac.save();
     } else {
-        throw new Error("Unsupported format. Only MP3 and FLAC are supported.");
+        throw new MetadataErrors.UnsupportedMusicFileError();
     }
 }
 

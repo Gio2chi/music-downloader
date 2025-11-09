@@ -8,6 +8,7 @@ type Rejecter = (err: Error) => void;
 import { Strategy as SpotifyStrategy } from "passport-spotify";
 import { app, passport } from "../../app/server.js"
 import { IUser, User } from "../../models/User.js";
+import { SpotifyErrors } from "../../errors/index.js";
 
 // Spotify strategy that returns only tokens
 passport.use(
@@ -99,12 +100,12 @@ class SpotifyUser {
 
         user = await new Promise<SpotifyUser>(async (resolve, reject) => {
             if (this.pendingLogins.has(chatId)) {
-                return reject(new Error("Login already pending for this chat"));
+                return reject(new SpotifyErrors.LoginPendingError());
             }
 
             const timer = setTimeout(() => {
                 this.pendingLogins.delete(chatId);
-                reject(new Error("Login timed out"));
+                reject(new SpotifyErrors.LoginTimeoutError());
             }, timeoutMs);
 
             await bot.sendMessage(chatId, "Visit the following link to log in to Spotify and authorize the bot:\n" + SPOTIFY.SPOTIFY_REDIRECT_URI + "/login?chat_id=" + chatId)

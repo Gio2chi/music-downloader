@@ -1,9 +1,7 @@
 import { Api, TelegramClient } from "telegram";
 import fs from "fs"
 import path from "path";
-
-export class TimeoutError extends Error { }
-export class MediaNotFoundError extends Error { }
+import { DownloadErrors } from "../../errors/index.js";
 
 class DownloadResolver {
     private static downloadFolder: string;
@@ -83,7 +81,7 @@ class DownloadResolver {
         }
 
         const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new TimeoutError("Download Timed out")), this.timeout)
+            setTimeout(() => reject(new DownloadErrors.DownloadTimeoutError()), this.timeout)
         );
 
         const downloadPromise = new Promise<string>(async (resolve, reject) => {
@@ -145,11 +143,11 @@ class DownloadResolver {
                 }
 
                 if (!found) {
-                    reject(new MediaNotFoundError("No media found in the message."));
+                    reject(new DownloadErrors.MediaNotFoundError());
                     return
                 }
             }
-            reject(new Error("Unexpected error while downloading."));
+            reject(new DownloadErrors.UnexpectedBehaviourError("Unexpected error while downloading."));
             return
         })
 

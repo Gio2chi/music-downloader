@@ -1,8 +1,4 @@
 import { TelegramClient } from "telegram";
-export declare class TimeoutError extends Error {
-}
-export declare class MediaNotFoundError extends Error {
-}
 declare class DownloadResolver {
     private static downloadFolder;
     private botUsername;

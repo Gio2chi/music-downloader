@@ -1,10 +1,7 @@
 import { Api } from "telegram";
 import fs from "fs";
 import path from "path";
-export class TimeoutError extends Error {
-}
-export class MediaNotFoundError extends Error {
-}
+import { DownloadErrors } from "../../errors/index.js";
 class DownloadResolver {
     constructor(botUsername, config = {}, priority) {
         this.time = 0;
@@ -55,7 +52,7 @@ class DownloadResolver {
             this.count = 0;
             this.time = Date.now();
         }
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new TimeoutError("Download Timed out")), this.timeout));
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new DownloadErrors.DownloadTimeoutError()), this.timeout));
         const downloadPromise = new Promise(async (resolve, reject) => {
             const msg = await client.sendMessage(this.botUsername, {
                 message: url,
@@ -99,11 +96,11 @@ class DownloadResolver {
                     return;
                 }
                 if (!found) {
-                    reject(new MediaNotFoundError("No media found in the message."));
+                    reject(new DownloadErrors.MediaNotFoundError());
                     return;
                 }
             }
-            reject(new Error("Unexpected error while downloading."));
+            reject(new DownloadErrors.UnexpectedBehaviourError("Unexpected error while downloading."));
             return;
         });
         return Promise.race([downloadPromise, timeoutPromise]);

@@ -1,10 +1,5 @@
 .env
+config.json
 node_modules
-*.db
-*.json
-!tsconfig.json
-!package.json
-!package-lock.json
-!template.env
-!template.config.json
 downloads
+temp

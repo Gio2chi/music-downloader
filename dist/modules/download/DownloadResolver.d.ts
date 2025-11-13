@@ -19,6 +19,7 @@ declare class DownloadResolver {
     static setFolder(folder: string): void;
     static getFolder(): string;
     private static UUID;
+    getBot(): string;
     getPriority(): number;
     getMaxSongsPerMinute(): number;
     startSession(): void;

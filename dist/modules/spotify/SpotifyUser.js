@@ -4,6 +4,8 @@ import { Strategy as SpotifyStrategy } from "passport-spotify";
 import { app, passport } from "../../app/server.js";
 import { User } from "../../models/User.js";
 import { SpotifyErrors } from "../../errors/index.js";
+import getLogger from "../../core/logSystem.js";
+const logger = getLogger('SpotifyUser');
 // Spotify strategy that returns only tokens
 passport.use(new SpotifyStrategy({
     clientID: SPOTIFY.SPOTIFY_CLIENT_ID,
@@ -27,12 +29,14 @@ app.get('/login', (req, res, next) => {
         state: chatId,
         session: false
     })(req, res, next);
+    logger.debug('Authenticating user', { meta: { chatId } });
 });
 app.get("/callback", passport.authenticate("spotify", { failureRedirect: "/", session: false }), (req, res) => {
     const chatId = req.query.state;
     const user = req.user;
     if (chatId) {
         SpotifyUser.resolveLogin(chatId, user);
+        logger.debug('Authenticated user', { meta: { chatId } });
     }
     res.send(`
             <html>

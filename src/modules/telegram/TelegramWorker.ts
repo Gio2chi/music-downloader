@@ -5,6 +5,7 @@ import DownloadResolver from "../download/DownloadResolver.js";
 import { DownloadTaskBody, DownloadTaskResult, DownloadTask } from "../download/DownloadTask.js";
 import DownloadWorker from "../download/DownloadWorker.js";
 import { TelegramTask } from "./TelegramTask.js";
+import getLogger from "../../core/logSystem.js";
 
 const SongQueue = PriorityWorkerQueue<DownloadTaskResult, DownloadTask, DownloadWorker>;
 type SongQueue = InstanceType<typeof SongQueue>;
@@ -23,6 +24,7 @@ export default class TelegramWorker implements WorkerInterface<void, TelegramTas
 
     async run(task: TelegramTask): Promise<void> {
         let body: DownloadTaskBody = { ...task, client: this.client }
+        getLogger('TelegramWorker').debug('Inserting song in download queue...', { meta: { songId: task.track.id, clientUsername: (await this.client.getMe()).username } })
         this.songQ.addTask(new DownloadTask(body, task.handlers.onSuccess, task.handlers.onFailure))
     }
 }

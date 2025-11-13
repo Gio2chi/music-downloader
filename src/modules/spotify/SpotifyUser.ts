@@ -9,6 +9,9 @@ import { Strategy as SpotifyStrategy } from "passport-spotify";
 import { app, passport } from "../../app/server.js"
 import { IUser, User } from "../../models/User.js";
 import { SpotifyErrors } from "../../errors/index.js";
+import getLogger from "../../core/logSystem.js";
+
+const logger = getLogger('SpotifyUser')
 
 // Spotify strategy that returns only tokens
 passport.use(
@@ -39,6 +42,7 @@ app.get('/login', (req, res, next) => {
         state: chatId,
         session: false
     })(req, res, next);
+    logger.debug('Authenticating user', { meta: { chatId } })
 });
 
 app.get(
@@ -54,6 +58,7 @@ app.get(
 
         if (chatId) {
             SpotifyUser.resolveLogin(chatId, user);
+            logger.debug('Authenticated user', { meta: { chatId } })
         }
 
         res.send(`
@@ -90,7 +95,7 @@ class SpotifyUser {
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
         this.expiresAt = expiresAt;
-        if(email)
+        if (email)
             this.email = email
     }
 
@@ -142,7 +147,7 @@ class SpotifyUser {
     }
 
     private static async loadFromDatabase(chatId: string): Promise<SpotifyUser | null> {
-        let user = this.parse(await User.findOne({telegram_chat_id: chatId}));
+        let user = this.parse(await User.findOne({ telegram_chat_id: chatId }));
         user?.loadTokens();
         let newToken = await user?.spotifyWebApi.refreshAccessToken()
         user?.spotifyWebApi.setAccessToken(newToken!.body.access_token)

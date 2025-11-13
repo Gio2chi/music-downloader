@@ -1,3 +1,4 @@
+import getLogger from "../../core/logSystem.js";
 import WorkerInterface from "../../core/WorkerInterface.js";
 import DownloadResolver from "./DownloadResolver.js";
 import { DownloadTask, DownloadTaskResult } from "./DownloadTask.js";
@@ -13,6 +14,7 @@ export default class DownloadWorker implements WorkerInterface<DownloadTaskResul
     }
 
     async run(task: DownloadTask): Promise<DownloadTaskResult> {
+        getLogger('DownloadWorker').debug(`Starting download session for bot: ${this.resolver.getBot()}`)
         this.resolver.startSession()
         let filename = await this.resolver.downloadSong(task.client, task.track.external_urls.spotify, task.filename)
         return { filename }

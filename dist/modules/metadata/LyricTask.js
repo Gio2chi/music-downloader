@@ -2,6 +2,7 @@ import fs from "fs";
 import { Song } from "../../models/Song.js";
 import DownloadResolver from "../download/DownloadResolver.js";
 import path from "path";
+import getLogger from "../../core/logSystem.js";
 export class LyricTask {
     constructor(body, onSuccess, onFailure) {
         this.filename = body.filename;
@@ -40,7 +41,7 @@ export class LyricTask {
             lines: result.lyric
         };
         await sng.save();
-        console.log(`✅ Saved ${result.synced ? "synced" : "unsynced"} lyric for:`, this.title);
+        getLogger('LyricTask').info(`✅ Saved ${result.synced ? "synced" : "unsynced"} lyric for:`, this.title);
         if (!result.instrumental)
             fs.writeFileSync(path.join(DownloadResolver.getFolder(), this.filename.replace(/\.(mp3|flac)(?=$|\?|#)/i, ".lrc")), `
                 [ar:${this.artist}]

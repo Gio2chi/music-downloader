@@ -4,6 +4,7 @@ import { Song } from "../../models/Song.js";
 import { TBasicTags, TLyricLine, TLyricTaskResult, TUniversalIds } from "../../types/index.js";
 import DownloadResolver from "../download/DownloadResolver.js";
 import path from "path";
+import getLogger from "../../core/logSystem.js";
 
 export class LyricTask implements TaskInterface<TLyricTaskResult> {
     filename: string;
@@ -55,7 +56,7 @@ export class LyricTask implements TaskInterface<TLyricTaskResult> {
             lines: result.lyric
         }
         await sng!.save()
-        console.log(`✅ Saved ${result.synced ? "synced" : "unsynced"} lyric for:`, this.title);
+        getLogger('LyricTask').info(`✅ Saved ${result.synced ? "synced" : "unsynced"} lyric for:`, this.title);
         
         if(!result.instrumental)
             fs.writeFileSync(

@@ -1,3 +1,4 @@
+import getLogger from "../../core/logSystem.js";
 import TaskInterface from "../../core/TaskInterface.js";
 import { DownloadTaskResult } from "../download/DownloadTask.js";
 
@@ -24,6 +25,10 @@ export class TelegramTask implements TaskInterface<void>, TelegramTaskBody {
         this.handlers = task.handlers
     }
 
-    async onSuccess(result: void): Promise<void> { };
-    async onFailure(): Promise<void> { };
+    async onSuccess(result: void): Promise<void> {
+        getLogger('TelegramTask').debug(`✅ Completed task`, { meta: { songId: this.track.id } });
+    };
+    async onFailure(): Promise<void> {
+        getLogger('TelegramTask').debug(`❌ Failed task`, { meta: { songId: this.track.id } });
+    };
 }

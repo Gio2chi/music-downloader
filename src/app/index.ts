@@ -1,5 +1,5 @@
 import path from "path"
-import mongoose, { HydratedDocument } from "mongoose";
+import mongoose, { get, HydratedDocument } from "mongoose";
 import { TelegramClient } from "telegram";
 import TelegramBot, { CallbackQuery } from "node-telegram-bot-api";
 
@@ -40,7 +40,7 @@ const bot = new TelegramBot(TELEGRAM_BOT.TELEGRAM_BOT_TOKEN);
 
 await mongoose.connect(DATABASE.DB_URL)
 
-const logger = getLogger('TelegramBot')
+const telegramLogger = getLogger('TelegramBot')
 
 enum MENUS {
     OPTIONS = 'O',
@@ -172,7 +172,7 @@ bot.onText(/\/start/, async (msg: TelegramBot.Message) => {
     const chatId = msg.chat.id.toString()
     try {
         let botDesc = await bot.getMe()
-        logger.debug("bot started", { meta: chatId })
+        telegramLogger.debug("bot started", { meta: chatId })
 
         bot.sendMessage(chatId, "Welcome to " + botDesc.first_name, {
             reply_markup: {
@@ -180,7 +180,7 @@ bot.onText(/\/start/, async (msg: TelegramBot.Message) => {
             },
         });
     } catch (e) {
-        logger.error(String(e), { meta: chatId })
+        telegramLogger.error(String(e), { meta: chatId })
     }
 })
 
@@ -227,7 +227,7 @@ async function getOptionMenu(chatId: string): Promise<TelegramBot.InlineKeyboard
 bot.onText(/\/help/, async (msg: TelegramBot.Message) => {
     const chatId = msg.chat.id.toString();
 
-    logger.debug("Issued help cmd", { meta: { chatId } })
+    telegramLogger.debug("Issued help cmd", { meta: { chatId } })
 
     let description = "**List of all commands**:\n"
     for (let menu of Object.values(MENUS)) {
@@ -242,11 +242,11 @@ bot.onText(/\/login/, async (msg: TelegramBot.Message) => {
 
     try {
         await logout(chatId)
-        logger.debug("User Logged out", { meta: { chatId } })
+        telegramLogger.debug("User Logged out", { meta: { chatId } })
 
         SpotifyUser.get(chatId, bot)
     } catch (e) {
-        logger.error(String(e), { meta: { chatId } })
+        telegramLogger.error(String(e), { meta: { chatId } })
     }
 })
 
@@ -255,9 +255,9 @@ bot.onText(/\/logout/, async (msg: TelegramBot.Message) => {
 
     try {
         logout(chatId)
-        logger.debug("User Logged out", { meta: { chatId } })
+        telegramLogger.debug("User Logged out", { meta: { chatId } })
     } catch (e) {
-        logger.error(String(e))
+        telegramLogger.error(String(e))
     }
 })
 
@@ -280,7 +280,7 @@ async function logout(chatId: string) {
 bot.onText(/\/download/, async (msg: TelegramBot.Message) => {
     try {
         const chatId = msg.chat.id.toString()
-        logger.debug("Issued download cmd", { meta: { chatId } })
+        telegramLogger.debug("Issued download cmd", { meta: { chatId } })
 
         bot.sendMessage(chatId, "Select which playlist you want to download:", {
             reply_markup: {
@@ -288,7 +288,7 @@ bot.onText(/\/download/, async (msg: TelegramBot.Message) => {
             },
         });
     } catch (e) {
-        logger.error(String(e))
+        telegramLogger.error(String(e))
     }
 });
 
@@ -366,7 +366,7 @@ async function getDownloadMenu(chatId: string, back = false): Promise<TelegramBo
 bot.onText(/\/export/, async (msg: TelegramBot.Message) => {
     const chatId = msg.chat.id.toString()
     try {
-        logger.debug("Issued export cmd", { meta: { chatId } })
+        telegramLogger.debug("Issued export cmd", { meta: { chatId } })
 
         bot.sendMessage(chatId, "Select which playlist you want to export:", {
             reply_markup: {
@@ -375,7 +375,7 @@ bot.onText(/\/export/, async (msg: TelegramBot.Message) => {
         });
 
     } catch (e) {
-        logger.error(String(e), { meta: chatId })
+        telegramLogger.error(String(e), { meta: chatId })
     }
 });
 
@@ -422,7 +422,7 @@ bot.on("callback_query", async (query: CallbackQuery) => {
             case MENUS.OPTIONS:
                 {
                     const botDesc = await bot.getMe()
-                    logger.debug("Listing cmd options", { meta: { chatId } })
+                    telegramLogger.debug("Listing cmd options", { meta: { chatId } })
 
                     bot.editMessageText("Welcome to " + botDesc.first_name, {
                         chat_id: chatId,
@@ -436,7 +436,7 @@ bot.on("callback_query", async (query: CallbackQuery) => {
             case MENUS.BACK:
                 {
                     const botDesc = await bot.getMe()
-                    logger.debug("Listing cmd options", { meta: { chatId } })
+                    telegramLogger.debug("Listing cmd options", { meta: { chatId } })
 
                     bot.editMessageText("Welcome to " + botDesc.first_name, {
                         chat_id: chatId,
@@ -450,11 +450,11 @@ bot.on("callback_query", async (query: CallbackQuery) => {
             case MENUS.DOWNLOAD_PLAYLIST:
                 {
                     if (cmd.args != null) {
-                        logger.debug("Starting download flow", { meta: { chatId, playlistId: cmd.args.playlistId } })
+                        telegramLogger.debug("Starting download flow", { meta: { chatId, playlistId: cmd.args.playlistId } })
                         downloadPlaylist(chatId, cmd.args as NonNullable<CommandArgs[MENUS.DOWNLOAD_PLAYLIST]>);
                     }
                     else {
-                        logger.debug("Issued download cmd", { meta: { chatId } })
+                        telegramLogger.debug("Issued download cmd", { meta: { chatId } })
 
                         bot.editMessageText("Select which playlist you want to download:", {
                             chat_id: chatId,
@@ -470,11 +470,11 @@ bot.on("callback_query", async (query: CallbackQuery) => {
             case MENUS.EXPORT_PLAYLIST:
                 {
                     if (cmd.args != null) {
-                        logger.debug("Exporting playlist", { meta: { chatId, playlistId: cmd.args.playlistId } })
+                        telegramLogger.debug("Exporting playlist", { meta: { chatId, playlistId: cmd.args.playlistId } })
                         exportPlaylist(chatId, cmd.args as NonNullable<CommandArgs[MENUS.EXPORT_PLAYLIST]>);
                     }
                     else {
-                        logger.debug("Issued export cmd", { meta: { chatId } })
+                        telegramLogger.debug("Issued export cmd", { meta: { chatId } })
 
                         bot.editMessageText("Select which playlist you want to export:", {
                             chat_id: chatId,
@@ -488,7 +488,7 @@ bot.on("callback_query", async (query: CallbackQuery) => {
                 }
             case MENUS.HELP:
                 {
-                    logger.debug("Issued help cmd", { meta: { chatId } })
+                    telegramLogger.debug("Issued help cmd", { meta: { chatId } })
 
                     let description = "**List of all commands**:\n"
                     for (let menu of Object.values(MENUS)) {
@@ -512,7 +512,7 @@ bot.on("callback_query", async (query: CallbackQuery) => {
             case MENUS.LOGIN:
                 {
                     await logout(chatId)
-                    logger.debug("User Logged out", { meta: { chatId } })
+                    telegramLogger.debug("User Logged out", { meta: { chatId } })
 
                     SpotifyUser.get(chatId, bot)
                     return
@@ -520,11 +520,11 @@ bot.on("callback_query", async (query: CallbackQuery) => {
             case MENUS.LOGOUT:
                 {
                     await logout(chatId)
-                    logger.debug("User Logged out", { meta: { chatId } })
+                    telegramLogger.debug("User Logged out", { meta: { chatId } })
                 }
         }
     } catch (e) {
-        logger.error(e)
+        telegramLogger.error(e)
     }
 
 })
@@ -556,14 +556,18 @@ async function exportPlaylist(chatId: string, args: NonNullable<CommandArgs[MENU
     });
 }
 
+const downloadLogger = getLogger("Download")
+
 async function downloadPlaylist(chatId: string, args: NonNullable<CommandArgs[MENUS.DOWNLOAD_PLAYLIST]>): Promise<void> {
     let user = await SpotifyUser.get(chatId, bot)
 
     let playlistData: any = { spotifyId: args.playlistId, owner: (await User.findOne({ telegram_chat_id: chatId }))?._id }
     let playlist = (await Playlist.findOne(playlistData))!
 
-    playlist.downloaded = true
-    playlist.save()
+    if (!playlist.downloaded) {
+        playlist.downloaded = true
+        playlist.save()
+    }
 
     let tracks: SpotifyApi.SavedTrackObject[] | SpotifyApi.PlaylistTrackObject[]
     if (args.playlistId == "saved")
@@ -575,14 +579,16 @@ async function downloadPlaylist(chatId: string, args: NonNullable<CommandArgs[ME
     for (const song of tracks) {
         if (song.track == null) {
             count++;
-            if (count >= tracks.length)
+            if (count >= tracks.length) {
+                downloadLogger.info('Playlist Dowloaded', { meta: { playlistId: args.playlistId, chatId } })
                 bot.sendMessage(chatId, `✅ downloaded playlist: ${playlist.name}`)
+            }
             continue
         }
 
         let tmp = await Song.findOne({ spotify_id: song.track.id })
         if (tmp) {
-            logger.info("Skipping (already downloaded): " + song.track.name)
+            downloadLogger.debug("Skipping (already downloaded): " + song.track.name, { meta: { songId: song.track.id } })
             let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: tmp.id })
             if (!record)
                 (new PlaylistSong({ playlistId: playlist.id, songId: tmp.id, added_at: new Date(song.added_at) })).save()
@@ -591,19 +597,25 @@ async function downloadPlaylist(chatId: string, args: NonNullable<CommandArgs[ME
                 lyricQueue.addTask(new LyricTask(tmp.toTags()))
 
             count++;
-            if (count >= tracks.length)
+            if (count >= tracks.length) {
+                downloadLogger.info('Playlist Dowloaded', { meta: { playlistId: args.playlistId, chatId } })
                 bot.sendMessage(chatId, `✅ downloaded playlist: ${playlist.name}`)
+            }
             continue;
         }
 
         if (song.track.external_ids.isrc == undefined) {
             count++
+            downloadLogger.info(`❌ Failed to download: ${song.track.name} ${song.track.external_urls.spotify}\n metadata not available.`, { meta: { chatId, songId: song.track.id } })
             bot.sendMessage(chatId, `❌ Failed to download: ${song.track.name} ${song.track.external_urls.spotify}\n metadata not available.`)
-            if (count >= tracks.length)
+            if (count >= tracks.length) {
+                downloadLogger.info('Playlist Dowloaded', { meta: { playlistId: args.playlistId, chatId } })
                 bot.sendMessage(chatId, `✅ downloaded playlist: ${playlist.name}`)
+            }
             continue;
         }
 
+        getLogger('TelegramQueue').debug('Inserting song in queue...', { meta: { songId: song.track.id } })
         downloadQueue.addTask(new TelegramTask({
             track: song.track,
             added_at: new Date(song.added_at),
@@ -611,6 +623,8 @@ async function downloadPlaylist(chatId: string, args: NonNullable<CommandArgs[ME
                 onSuccess: async (result: DownloadTaskResult) => {
                     let sng = Song.parse(song.track!)
                     sng.filename = result.filename
+
+                    downloadLogger.debug('Updating song metadata...', { meta: { songId: sng.spotify_id } })
                     await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), sng.toTags())
                     sng.save()
 
@@ -618,17 +632,20 @@ async function downloadPlaylist(chatId: string, args: NonNullable<CommandArgs[ME
                     if (!record)
                         (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save()
 
-                    logger.info("✅ Saved:", song.track!.name);
+                    downloadLogger.info(`✅ Saved: ${song.track!.name}`, { meta: { songId: sng.spotify_id } });
 
                     if (!sng.lyric)
                         lyricQueue.addTask(new LyricTask(sng.toTags()))
 
                     count++;
-                    if (count >= tracks.length)
+                    if (count >= tracks.length) {
+                        downloadLogger.info('Playlist Dowloaded', { meta: { playlistId: args.playlistId, chatId } })
                         bot.sendMessage(chatId, `✅ downloaded playlist: ${playlist.name}`)
+                    }
                 },
                 // try another time
                 onFailure: async () => {
+                    getLogger('TelegramQueue').debug('Reinserting song in queue...', { meta: { songId: song.track!.id } })
                     downloadQueue.addTask(new TelegramTask({
                         track: song.track!,
                         added_at: new Date(song.added_at),
@@ -636,6 +653,8 @@ async function downloadPlaylist(chatId: string, args: NonNullable<CommandArgs[ME
                             onSuccess: async (result: DownloadTaskResult) => {
                                 let sng = Song.parse(song.track!)
                                 sng.filename = result.filename
+
+                                downloadLogger.debug('Updating song metadata...', { meta: { songId: sng.spotify_id } })
                                 await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), sng.toTags())
                                 sng.save()
 
@@ -643,21 +662,25 @@ async function downloadPlaylist(chatId: string, args: NonNullable<CommandArgs[ME
                                 if (!record)
                                     (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save()
 
-                                logger.info("✅ Saved:", song.track!.name);
+                                downloadLogger.info(`✅ Saved: ${song.track!.name}`, { meta: { songId: sng.spotify_id } });
 
                                 if (!sng.lyric)
                                     lyricQueue.addTask(new LyricTask(sng.toTags()))
 
                                 count++;
-                                if (count >= tracks.length)
+                                if (count >= tracks.length) {
+                                    downloadLogger.info('Playlist Dowloaded', { meta: { playlistId: args.playlistId, chatId } })
                                     bot.sendMessage(chatId, `✅ downloaded playlist: ${playlist.name}`)
+                                }
                             },
                             onFailure: async () => {
                                 bot.sendMessage(chatId, `❌ Failed to download: ${song.track!.name}`)
-                                logger.info(`❌ Failed to download: ${song.track!.name}`)
+                                downloadLogger.info(`❌ Failed to download: ${song.track!.name}`, { meta: { songId: song.track!.id } })
                                 count++;
-                                if (count >= tracks.length)
+                                if (count >= tracks.length) {
+                                    downloadLogger.info('Playlist Dowloaded', { meta: { playlistId: args.playlistId, chatId } })
                                     bot.sendMessage(chatId, `✅ downloaded playlist: ${playlist.name}`)
+                                }
                             }
                         }
                     }))

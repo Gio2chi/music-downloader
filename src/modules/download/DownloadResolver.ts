@@ -2,6 +2,7 @@ import { Api, TelegramClient } from "telegram";
 import fs from "fs"
 import path from "path";
 import { DownloadErrors } from "../../errors/index.js";
+import getLogger from "../../core/logSystem.js";
 
 class DownloadResolver {
     private static downloadFolder: string;
@@ -50,6 +51,10 @@ class DownloadResolver {
         });
     }
 
+    public getBot() {
+        return this.botUsername
+    }
+
     public getPriority() {
         return this.priority
     }
@@ -73,7 +78,7 @@ class DownloadResolver {
         if (this.count >= this.songsPerMinute) {
             let waitTime = 60000 - (Date.now() - this.time);
             if (waitTime > 0) {
-                console.log(`Rate limit reached. Waiting for ${waitTime} ms`);
+                getLogger('DownloadResolver').info(`Rate limit reached. Waiting for ${waitTime} ms`, { meta: { botUsername: this.botUsername }});
                 await new Promise(r => setTimeout(r, waitTime));
             }
             this.count = 0;

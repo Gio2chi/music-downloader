@@ -1,6 +1,7 @@
 import PriorityWorkerQueue from "../../core/PriorityWorkerQueue.js";
 import { DownloadTask } from "../download/DownloadTask.js";
 import DownloadWorker from "../download/DownloadWorker.js";
+import getLogger from "../../core/logSystem.js";
 const SongQueue = (PriorityWorkerQueue);
 export default class TelegramWorker {
     constructor(client, resolvers) {
@@ -12,6 +13,7 @@ export default class TelegramWorker {
     }
     async run(task) {
         let body = { ...task, client: this.client };
+        getLogger('TelegramWorker').debug('Inserting song in download queue...', { meta: { songId: task.track.id, clientUsername: (await this.client.getMe()).username } });
         this.songQ.addTask(new DownloadTask(body, task.handlers.onSuccess, task.handlers.onFailure));
     }
 }

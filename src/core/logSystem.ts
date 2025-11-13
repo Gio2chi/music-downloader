@@ -11,6 +11,7 @@ const warningTransport = new DailyRotateFile({
     dirname: 'logs'
 })
 
+warningTransport.setMaxListeners(30)
 warningTransport.on('error', () => { })
 
 const debugTransport = new DailyRotateFile({
@@ -22,18 +23,8 @@ const debugTransport = new DailyRotateFile({
     maxFiles: '90d'
 })
 
+debugTransport.setMaxListeners(30)
 debugTransport.on('error', () => { })
-
-const consoleTransport = new winston.transports.Console({
-    level: 'debug',
-    format: winston.format.combine(
-        winston.format.timestamp({ format: 'HH:mm:ss' }),
-        winston.format.colorize({ all: true }),
-        winston.format.printf(({ timestamp, level, message, label }) => {
-            return `${timestamp} [${label || 'unknown'}] ${level}: ${message}`
-        })
-    )
-})
 
 const dynamicMetaFormat = winston.format((info) => {
     if (info.meta && typeof info.meta === 'object') {
@@ -44,9 +35,26 @@ const dynamicMetaFormat = winston.format((info) => {
     return info;
 })()
 
-const getLogger = (config: { displayName: string, level: string}): winston.Logger => {
-    const {level, displayName} = config
-    return winston.createLogger({
+const map: { [key: string]: winston.Logger } = {}
+
+const getLogger = (config: { displayName: string, level: string }): winston.Logger => {
+    const { level, displayName } = config
+
+    if (map[displayName])
+        return map[displayName]
+
+    const consoleTransport = new winston.transports.Console({
+        level,
+        format: winston.format.combine(
+            winston.format.timestamp({ format: 'HH:mm:ss' }),
+            winston.format.colorize({ all: true }),
+            winston.format.printf(({ timestamp, level, message, label }) => {
+                return `${timestamp} [${label || 'unknown'}] ${level}: ${message}`
+            })
+        )
+    })
+
+    const logger = winston.createLogger({
         level,
         format: winston.format.combine(
             winston.format.timestamp(),
@@ -62,6 +70,9 @@ const getLogger = (config: { displayName: string, level: string}): winston.Logge
         ],
         exitOnError: false
     })
+
+    map[displayName] = logger;
+    return logger;
 }
 
 export default getLogger

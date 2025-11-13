@@ -3,6 +3,8 @@ import DownloadResolver from "../../modules/download/DownloadResolver.js";
 import fs from "fs";
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions/StringSession.js";
+import getLogger from "../../core/logSystem.js";
+import { LoggerConfigs, Modules } from "./configs.js";
 dotenv.config();
 const { 
 // Spotify
@@ -38,9 +40,21 @@ if (!fs.existsSync(DOWNLOAD_PATH ?? "./downloads"))
 DownloadResolver.setFolder(DOWNLOAD_PATH ?? "./downloads");
 const config = JSON.parse(fs.readFileSync(CONFIG_PATH ?? "./config.json", "utf-8"));
 const TELEGRAM_CLIENTS = [];
+const telegramClientLogger = getLogger(LoggerConfigs[Modules.TELEGRAM_CLIENT]);
 config.telegram_clients.forEach((clientLoginToken) => {
     let stringSession = new StringSession(clientLoginToken);
-    TELEGRAM_CLIENTS.push(new TelegramClient(stringSession, parseInt(TELEGRAM_CLIENT_API_ID, 10), TELEGRAM_CLIENT_API_HASH, { connectionRetries: 5 }));
+    const telegramClient = new TelegramClient(stringSession, parseInt(TELEGRAM_CLIENT_API_ID, 10), TELEGRAM_CLIENT_API_HASH, { connectionRetries: 5 });
+    telegramClient.logger.log = (level, message, color) => {
+        let map = {
+            "none": "debug",
+            "error": "error",
+            "warn": "warning",
+            "info": "info",
+            "debug": "debug"
+        };
+        telegramClientLogger.log(map[level], message);
+    };
+    TELEGRAM_CLIENTS.push(telegramClient);
 });
 const RESOLVERS = [];
 config.resolvers.forEach((resolver) => {

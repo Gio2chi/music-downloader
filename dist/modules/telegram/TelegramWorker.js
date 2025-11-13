@@ -14,7 +14,7 @@ export default class TelegramWorker {
     }
     async run(task) {
         let body = { ...task, client: this.client };
-        getLogger(LoggerConfigs[Modules.TELEGRAM_WORKER]).debug('Inserting song in download queue...', { meta: { songId: task.track.id, clientUsername: (await this.client.getMe()).username } });
+        getLogger(LoggerConfigs[Modules.TELEGRAM_WORKER]).debug('Inserting song in download queue...', { meta: { songId: task.track.id } });
         this.songQ.addTask(new DownloadTask(body, task.handlers.onSuccess, task.handlers.onFailure));
     }
 }

@@ -7,6 +7,7 @@ const {
     TELEGRAM_TASK_LOG_LEVEL,
     TELEGRAM_WORKER_LOG_LEVEL,
     TELEGRAM_BOT_LOG_LEVEL,
+    TELEGRAM_CLIENT_LOG_LEVEL,
     TELEGRAM_QUEUE_LOG_LEVEL,
     DOWNLOAD_LOG_LEVEL,
     DOWNLOAD_RESOLVER_LOG_LEVEL,
@@ -15,7 +16,7 @@ const {
     SPOTIFY_USER_LOG_LEVEL,
     METADATA_MANAGER_LOG_LEVEL,
     LYRIC_TASK_LOG_LEVEL,
-    LYRIC_WORKER_LOG_LEVEL
+    LYRIC_WORKER_LOG_LEVEL,
 } = process.env;
 
 enum Modules {
@@ -23,6 +24,7 @@ enum Modules {
     TELEGRAM_TASK,
     TELEGRAM_WORKER,
     TELEGRAM_BOT,
+    TELEGRAM_CLIENT,
     TELEGRAM_QUEUE,
     DOWNLOAD,
     DOWNLOAD_RESOLVER,
@@ -39,6 +41,7 @@ LoggerConfigs[Modules.EXPRESS] = { displayName: "Express", level: EXPRESS_LOG_LE
 LoggerConfigs[Modules.TELEGRAM_TASK] = { displayName: "TelegramTask", level: TELEGRAM_TASK_LOG_LEVEL ?? DEFAULT_LOG_LEVEL ?? 'info' }
 LoggerConfigs[Modules.TELEGRAM_WORKER] = { displayName: "TelegramWorker", level: TELEGRAM_WORKER_LOG_LEVEL ?? DEFAULT_LOG_LEVEL ?? 'info' }
 LoggerConfigs[Modules.TELEGRAM_BOT] = { displayName: "TelegramBot", level: TELEGRAM_BOT_LOG_LEVEL ?? DEFAULT_LOG_LEVEL ?? 'info' }
+LoggerConfigs[Modules.TELEGRAM_CLIENT] = { displayName: "TelegramClient", level: TELEGRAM_CLIENT_LOG_LEVEL ?? 'error' }
 LoggerConfigs[Modules.TELEGRAM_QUEUE] = { displayName: "TelegramQueue", level: TELEGRAM_QUEUE_LOG_LEVEL ?? DEFAULT_LOG_LEVEL ?? 'info' }
 LoggerConfigs[Modules.DOWNLOAD] = { displayName: "Download", level: DOWNLOAD_LOG_LEVEL ?? DEFAULT_LOG_LEVEL ?? 'info' }
 LoggerConfigs[Modules.DOWNLOAD_RESOLVER] = { displayName: "DownloadResolver", level: DOWNLOAD_RESOLVER_LOG_LEVEL ?? DEFAULT_LOG_LEVEL ?? 'info' }

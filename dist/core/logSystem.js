@@ -8,6 +8,7 @@ const warningTransport = new DailyRotateFile({
     filename: 'warning-%DATE%.log',
     dirname: 'logs'
 });
+warningTransport.setMaxListeners(30);
 warningTransport.on('error', () => { });
 const debugTransport = new DailyRotateFile({
     level: 'debug',
@@ -17,13 +18,8 @@ const debugTransport = new DailyRotateFile({
     dirname: 'logs',
     maxFiles: '90d'
 });
+debugTransport.setMaxListeners(30);
 debugTransport.on('error', () => { });
-const consoleTransport = new winston.transports.Console({
-    level: 'debug',
-    format: winston.format.combine(winston.format.timestamp({ format: 'HH:mm:ss' }), winston.format.colorize({ all: true }), winston.format.printf(({ timestamp, level, message, label }) => {
-        return `${timestamp} [${label || 'unknown'}] ${level}: ${message}`;
-    }))
-});
 const dynamicMetaFormat = winston.format((info) => {
     if (info.meta && typeof info.meta === 'object') {
         // Merge the meta object into the log entry
@@ -32,9 +28,18 @@ const dynamicMetaFormat = winston.format((info) => {
     }
     return info;
 })();
+const map = {};
 const getLogger = (config) => {
     const { level, displayName } = config;
-    return winston.createLogger({
+    if (map[displayName])
+        return map[displayName];
+    const consoleTransport = new winston.transports.Console({
+        level,
+        format: winston.format.combine(winston.format.timestamp({ format: 'HH:mm:ss' }), winston.format.colorize({ all: true }), winston.format.printf(({ timestamp, level, message, label }) => {
+            return `${timestamp} [${label || 'unknown'}] ${level}: ${message}`;
+        }))
+    });
+    const logger = winston.createLogger({
         level,
         format: winston.format.combine(winston.format.timestamp(), dynamicMetaFormat, winston.format.label({ label: displayName }), winston.format.json()),
         levels: winston.config.syslog.levels,
@@ -45,5 +50,7 @@ const getLogger = (config) => {
         ],
         exitOnError: false
     });
+    map[displayName] = logger;
+    return logger;
 };
 export default getLogger;

@@ -3,6 +3,9 @@ import DownloadResolver from "../../modules/download/DownloadResolver.js";
 import fs from "fs";
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions/StringSession.js";
+import { LogLevel } from "telegram/extensions/Logger.js";
+import getLogger from "../../core/logSystem.js";
+import { LoggerConfigs, Modules } from "./configs.js";
 dotenv.config();
 
 const {
@@ -50,7 +53,7 @@ if (
 const SPOTIFY = { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI }
 const TELEGRAM_BOT = { TELEGRAM_BOT_TOKEN }
 
-if(
+if (
     !DB_URL
 ) {
     throw new Error("❌ Missing one or more required mongodb environment variables.")
@@ -66,16 +69,28 @@ DownloadResolver.setFolder(DOWNLOAD_PATH ?? "./downloads")
 const config = JSON.parse(fs.readFileSync(CONFIG_PATH ?? "./config.json", "utf-8"))
 
 const TELEGRAM_CLIENTS: TelegramClient[] = []
+const telegramClientLogger = getLogger(LoggerConfigs[Modules.TELEGRAM_CLIENT])
 config.telegram_clients.forEach((clientLoginToken: string) => {
 
     let stringSession = new StringSession(clientLoginToken);
-    
-    TELEGRAM_CLIENTS.push(new TelegramClient(
+    const telegramClient = new TelegramClient(
         stringSession,
         parseInt(TELEGRAM_CLIENT_API_ID, 10),
         TELEGRAM_CLIENT_API_HASH,
         { connectionRetries: 5 }
-    ))
+    )
+
+    telegramClient.logger.log = (level: LogLevel, message: string, color: string) => {
+        let map = {
+            "none": "debug",
+            "error": "error",
+            "warn": "warning",
+            "info": "info",
+            "debug": "debug"
+        }
+        telegramClientLogger.log(map[level], message)
+    }
+    TELEGRAM_CLIENTS.push(telegramClient)
 });
 
 const RESOLVERS: DownloadResolver[] = []

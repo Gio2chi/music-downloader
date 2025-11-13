@@ -19,7 +19,7 @@ const debugTransport = new DailyRotateFile({
 });
 debugTransport.on('error', () => { });
 const consoleTransport = new winston.transports.Console({
-    level: 'info',
+    level: 'debug',
     format: winston.format.combine(winston.format.timestamp({ format: 'HH:mm:ss' }), winston.format.colorize({ all: true }), winston.format.printf(({ timestamp, level, message, label }) => {
         return `${timestamp} [${label || 'unknown'}] ${level}: ${message}`;
     }))
@@ -32,9 +32,11 @@ const dynamicMetaFormat = winston.format((info) => {
     }
     return info;
 })();
-const getLogger = (moduleName) => {
+const getLogger = (config) => {
+    const { level, displayName } = config;
     return winston.createLogger({
-        format: winston.format.combine(winston.format.timestamp(), dynamicMetaFormat, winston.format.label({ label: moduleName }), winston.format.json()),
+        level,
+        format: winston.format.combine(winston.format.timestamp(), dynamicMetaFormat, winston.format.label({ label: displayName }), winston.format.json()),
         levels: winston.config.syslog.levels,
         transports: [
             warningTransport,

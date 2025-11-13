@@ -24,6 +24,7 @@ import { LyricWorkerInterface } from "../modules/metadata/LyricWorkerInterface.j
 import { LyricTask } from "../modules/metadata/LyricTask.js";
 import { lrclibWorker } from "../modules/metadata/lyricWorkers/lrclib.js";
 import getLogger from "../core/logSystem.js";
+import { LoggerConfigs, Modules } from "./config/configs.js";
 
 const DownloadQueue = PriorityWorkerQueue<void, TelegramTask, TelegramWorker>;
 type DownloadQueue = InstanceType<typeof DownloadQueue>;
@@ -40,7 +41,7 @@ const bot = new TelegramBot(TELEGRAM_BOT.TELEGRAM_BOT_TOKEN);
 
 await mongoose.connect(DATABASE.DB_URL)
 
-const telegramLogger = getLogger('TelegramBot')
+const telegramLogger = getLogger(LoggerConfigs[Modules.TELEGRAM_BOT])
 
 enum MENUS {
     OPTIONS = 'O',
@@ -556,7 +557,7 @@ async function exportPlaylist(chatId: string, args: NonNullable<CommandArgs[MENU
     });
 }
 
-const downloadLogger = getLogger("Download")
+const downloadLogger = getLogger(LoggerConfigs[Modules.DOWNLOAD])
 
 async function downloadPlaylist(chatId: string, args: NonNullable<CommandArgs[MENUS.DOWNLOAD_PLAYLIST]>): Promise<void> {
     let user = await SpotifyUser.get(chatId, bot)
@@ -615,7 +616,7 @@ async function downloadPlaylist(chatId: string, args: NonNullable<CommandArgs[ME
             continue;
         }
 
-        getLogger('TelegramQueue').debug('Inserting song in queue...', { meta: { songId: song.track.id } })
+        getLogger(LoggerConfigs[Modules.TELEGRAM_QUEUE]).debug('Inserting song in queue...', { meta: { songId: song.track.id } })
         downloadQueue.addTask(new TelegramTask({
             track: song.track,
             added_at: new Date(song.added_at),
@@ -645,7 +646,7 @@ async function downloadPlaylist(chatId: string, args: NonNullable<CommandArgs[ME
                 },
                 // try another time
                 onFailure: async () => {
-                    getLogger('TelegramQueue').debug('Reinserting song in queue...', { meta: { songId: song.track!.id } })
+                    getLogger(LoggerConfigs[Modules.TELEGRAM_QUEUE]).debug('Reinserting song in queue...', { meta: { songId: song.track!.id } })
                     downloadQueue.addTask(new TelegramTask({
                         track: song.track!,
                         added_at: new Date(song.added_at),
@@ -695,4 +696,4 @@ app.post("/spotifydl/webhook", function (req, res) {
     res.send(200);
 });
 
-app.listen(3000, () => getLogger('Express Server').info("Server running on port 3000"));
+app.listen(3000, () => getLogger(LoggerConfigs[Modules.EXPRESS]).info("Server running on port 3000"));

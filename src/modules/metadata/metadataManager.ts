@@ -5,6 +5,7 @@ import Metaflac from 'metaflac-js';
 import { TExtendedTags } from "../../types/index.js";
 import { MetadataErrors } from "../../errors/index.js";
 import getLogger from "../../core/logSystem.js";
+import { LoggerConfigs, Modules } from "../../app/config/configs.js";
 
 async function fetchImage(url: string | URL) {
     const response = await fetch(url);
@@ -40,7 +41,7 @@ export async function updateMetadata(filePath: string, tags: TExtendedTags) {
 
     } catch (e) {
         if(e instanceof MetadataErrors.UnsupportedMimeTypeError)
-            getLogger('MetadataManager').error(e)
+            getLogger(LoggerConfigs[Modules.METADATA_MANAGER]).error(e)
     }
 
     if (format.includes("mpeg")) {

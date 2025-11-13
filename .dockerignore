@@ -4,6 +4,7 @@ Dockerfile
 .gitignore
 node_modules
 downloads
+logs
 *.db
 *.json
 !resolvers.json

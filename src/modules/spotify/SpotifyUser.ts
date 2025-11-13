@@ -10,8 +10,9 @@ import { app, passport } from "../../app/server.js"
 import { IUser, User } from "../../models/User.js";
 import { SpotifyErrors } from "../../errors/index.js";
 import getLogger from "../../core/logSystem.js";
+import { LoggerConfigs, Modules } from "../../app/config/configs.js";
 
-const logger = getLogger('SpotifyUser')
+const logger = getLogger(LoggerConfigs[Modules.SPOTIFY_USER])
 
 // Spotify strategy that returns only tokens
 passport.use(

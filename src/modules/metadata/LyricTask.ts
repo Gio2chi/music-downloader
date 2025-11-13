@@ -5,6 +5,7 @@ import { TBasicTags, TLyricLine, TLyricTaskResult, TUniversalIds } from "../../t
 import DownloadResolver from "../download/DownloadResolver.js";
 import path from "path";
 import getLogger from "../../core/logSystem.js";
+import { LoggerConfigs, Modules } from "../../app/config/configs.js";
 
 export class LyricTask implements TaskInterface<TLyricTaskResult> {
     filename: string;
@@ -56,7 +57,7 @@ export class LyricTask implements TaskInterface<TLyricTaskResult> {
             lines: result.lyric
         }
         await sng!.save()
-        getLogger('LyricTask').info(`✅ Saved ${result.synced ? "synced" : "unsynced"} lyric for:`, this.title);
+        getLogger(LoggerConfigs[Modules.LYRIC_TASK]).info(`✅ Saved ${result.synced ? "synced" : "unsynced"} lyric for:`, this.title);
         
         if(!result.instrumental)
             fs.writeFileSync(

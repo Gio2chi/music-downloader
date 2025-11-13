@@ -1,3 +1,4 @@
+import { LoggerConfigs, Modules } from "../../app/config/configs.js";
 import getLogger from "../../core/logSystem.js";
 export class TelegramTask {
     constructor(task) {
@@ -7,11 +8,11 @@ export class TelegramTask {
         this.handlers = task.handlers;
     }
     async onSuccess(result) {
-        getLogger('TelegramTask').debug(`✅ Completed task`, { meta: { songId: this.track.id } });
+        getLogger(LoggerConfigs[Modules.TELEGRAM_TASK]).debug(`✅ Completed task`, { meta: { songId: this.track.id } });
     }
     ;
     async onFailure() {
-        getLogger('TelegramTask').debug(`❌ Failed task`, { meta: { songId: this.track.id } });
+        getLogger(LoggerConfigs[Modules.TELEGRAM_TASK]).debug(`❌ Failed task`, { meta: { songId: this.track.id } });
     }
     ;
 }

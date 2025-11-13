@@ -4,6 +4,7 @@ import NodeID3 from "node-id3";
 import Metaflac from 'metaflac-js';
 import { MetadataErrors } from "../../errors/index.js";
 import getLogger from "../../core/logSystem.js";
+import { LoggerConfigs, Modules } from "../../app/config/configs.js";
 async function fetchImage(url) {
     const response = await fetch(url);
     const arrayBuffer = await response.arrayBuffer();
@@ -35,7 +36,7 @@ export async function updateMetadata(filePath, tags) {
     }
     catch (e) {
         if (e instanceof MetadataErrors.UnsupportedMimeTypeError)
-            getLogger('MetadataManager').error(e);
+            getLogger(LoggerConfigs[Modules.METADATA_MANAGER]).error(e);
     }
     if (format.includes("mpeg")) {
         // ----- MP3 -----

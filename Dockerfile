@@ -1,37 +1,26 @@
-FROM node:20-bullseye
-
-RUN apt-get update && apt-get install -y \
-    python3 python3-dev build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-# Use production node environment by default.
-ENV NODE_ENV=production
-
+# Stage 1: Build
+FROM node:20-bullseye AS build
 WORKDIR /usr/src/app
 
-
-# Download dependencies as a separate step to take advantage of Docker's caching.
-# Leverage a cache mount to /root/.npm to speed up subsequent builds.
-# Leverage a bind mounts to package.json and package-lock.json to avoid having to copy them into
-# into this layer.
-# RUN --mount=type=bind,source=package.json,target=package.json \
-#     --mount=type=bind,source=package-lock.json,target=package-lock.json \
-#     --mount=type=cache,target=/root/.npm \
-#     npm ci --omit=dev
+# Install build tools for compiling native modules
+RUN apt-get update && apt-get install -y python3 build-essential && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci
 
-RUN chown -R node:node /usr/src/app/
-
-# Run the application as a non-root user.
-USER node
-
-# Copy the rest of the source files into the image.
 COPY . .
 
-# Expose the port that the application listens on.
-EXPOSE 3000
+# Stage 2: Production
+FROM node:20-bullseye-slim
+WORKDIR /usr/src/app
 
-# Run the application.
+# Only copy production node_modules
+COPY --from=build /usr/src/app/package*.json ./
+COPY --from=build /usr/src/app/node_modules ./node_modules
+COPY --from=build /usr/src/app/dist ./dist 
+
+RUN chown -R node:node /usr/src/app
+USER node
+
+EXPOSE 3000
 CMD ["node", "./dist/app/index.js"]

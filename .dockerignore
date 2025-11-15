@@ -5,6 +5,7 @@ Dockerfile
 node_modules
 downloads
 logs
+src
 *.db
 *.json
 !resolvers.json

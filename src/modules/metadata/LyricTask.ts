@@ -6,6 +6,7 @@ import DownloadResolver from "../download/DownloadResolver.js";
 import path from "path";
 import getLogger from "../../core/logSystem.js";
 import { LoggerConfigs, Modules } from "../../app/config/configs.js";
+import { toLRC } from "./utils.js";
 
 export class LyricTask implements TaskInterface<TLyricTaskResult> {
     filename: string;
@@ -33,32 +34,7 @@ export class LyricTask implements TaskInterface<TLyricTaskResult> {
         this.onFailure = onFailure ?? this.onFailure
     }
 
-    private toLRC(lines: TLyricLine[]) {
-        return lines.reduce((acc, { text, timestamp }) => {
-            if (!text) return acc; // skip empty text
-            if (typeof timestamp === 'number') {
-                const totalSeconds = timestamp / 1000;
-                const m = Math.floor(totalSeconds / 60);
-                const s = Math.floor(totalSeconds % 60);
-                const cs = Math.floor((totalSeconds * 100) % 100); // hundredths
-                acc += `[${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}]${text}\n`;
-            } else {
-                acc += `${text}\n`; // unsynced line
-            }
-            return acc;
-        }, '');
-    }
-
-    async onSuccess(result: TLyricTaskResult): Promise<void> {
-        let sng = await Song.findOne({ spotify_id: this.spotify_id })
-        sng!.lyric = {
-            instrumental: result.instrumental,
-            synced: result.synced,
-            lines: result.lyric
-        }
-        await sng!.save()
-        getLogger(LoggerConfigs[Modules.LYRIC_TASK]).info(`✅ Saved ${result.synced ? "synced" : "unsynced"} lyric for:`, this.title);
-        
+    async onSuccess(result: TLyricTaskResult): Promise<void> {        
         if(!result.instrumental)
             fs.writeFileSync(
                 path.join(DownloadResolver.getFolder(), this.filename.replace(/\.(mp3|flac)(?=$|\?|#)/i, ".lrc")),
@@ -67,9 +43,14 @@ export class LyricTask implements TaskInterface<TLyricTaskResult> {
                 [ti:${this.title}]
                 [al:${this.album}]
 
-                ${this.toLRC(result.lyric)}
+                ${toLRC(result.lyric)}
                 `.replace(/^[ \t]+/gm, '').trim()
             )
+
+        getLogger(LoggerConfigs[Modules.LYRIC_TASK]).debug(`✅ Saved ${result.synced ? "synced" : "unsynced"} lyric for: ${this.title}`, 
+            { meta: {
+                songId: this.spotify_id, lyricPath: path.join(DownloadResolver.getFolder(), this.filename.replace(/\.(mp3|flac)(?=$|\?|#)/i, ".lrc"))
+            }});
     }
     async onFailure(): Promise<void> { }
 }

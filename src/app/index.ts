@@ -1,7 +1,8 @@
 import path from "path"
-import mongoose, { get, HydratedDocument } from "mongoose";
+import mongoose, { HydratedDocument } from "mongoose";
 import { TelegramClient } from "telegram";
 import TelegramBot, { CallbackQuery } from "node-telegram-bot-api";
+import fs from "fs";
 
 import { TELEGRAM_BOT, DATABASE, RESOLVERS, TELEGRAM_CLIENTS } from "./config/secrets.js"
 import SpotifyUser from "../modules/spotify/SpotifyUser.js"
@@ -10,7 +11,7 @@ import PriorityWorkerQueue from "../core/PriorityWorkerQueue.js";
 
 import DownloadResolver from "../modules/download/DownloadResolver.js";
 import { DownloadTaskResult } from "../modules/download/DownloadTask.js";
-import { updateMetadata } from "../modules/metadata/metadataManager.js"
+import { toLRC, updateMetadata } from "../modules/metadata/utils.js"
 
 import { Song } from "../models/Song.js";
 import { TLyricTaskResult, TSong } from "../types/index.js"
@@ -635,7 +636,27 @@ async function downloadPlaylist(chatId: string, args: NonNullable<CommandArgs[ME
                     downloadLogger.info(`✅ Saved: ${song.track!.name}`, { meta: { songId: sng.spotify_id } });
 
                     if (!sng.lyric)
-                        lyricQueue.addTask(new LyricTask(sng.toTags()))
+                        lyricQueue.addTask(new LyricTask(sng.toTags(), async (res: TLyricTaskResult) => {
+                            sng!.lyric = {
+                                instrumental: res.instrumental,
+                                synced: res.synced,
+                                lines: res.lyric
+                            }
+                            await sng!.save()
+                            getLogger(LoggerConfigs[Modules.LYRIC_TASK]).info(`✅ Saved ${res.synced ? "synced" : "unsynced"} lyric for:`, sng.title);
+
+                            if (!res.instrumental)
+                                fs.writeFileSync(
+                                    path.join(DownloadResolver.getFolder(), result.filename.replace(/\.(mp3|flac)(?=$|\?|#)/i, ".lrc")),
+                                    `
+                                    [ar:${sng.artists[0].name}]
+                                    [ti:${sng.title}]
+                                    [al:${sng.album.name}]
+                    
+                                    ${toLRC(res.lyric)}
+                                    `.replace(/^[ \t]+/gm, '').trim()
+                                )
+                        }))
 
                     count++;
                     if (count >= tracks.length) {

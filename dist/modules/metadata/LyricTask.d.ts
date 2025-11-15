@@ -12,7 +12,6 @@ export declare class LyricTask implements TaskInterface<TLyricTaskResult> {
     constructor(body: Required<TBasicTags> & Required<TUniversalIds> & {
         filename: string;
     }, onSuccess?: ((result: TLyricTaskResult) => Promise<void>), onFailure?: (() => Promise<void>));
-    private toLRC;
     onSuccess(result: TLyricTaskResult): Promise<void>;
     onFailure(): Promise<void>;
 }

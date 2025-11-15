@@ -1,6 +1,6 @@
 import path from "path";
 import TaskInterface from "../../core/TaskInterface.js";
-import { updateMetadata } from "../metadata/metadataManager.js";
+import { updateMetadata } from "../metadata/utils.js";
 import DownloadResolver from "./DownloadResolver.js";
 import { TelegramClient } from "telegram";
 import { Song } from "../../models/Song.js";
@@ -48,11 +48,10 @@ export class DownloadTask implements TaskInterface<DownloadTaskResult>, Download
     }
 
     async onSuccess(result: DownloadTaskResult): Promise<void> {
-        let sng = new Song({ spotify_id: this.track.id, title: this.track.name, filename: result.filename })
-        await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), sng.toTags())
-        getLogger(LoggerConfigs[Modules.DOWNLOAD_TASK]).info(`✅ Saved: ${this.track.name}`, { meta: { songId: sng.spotify_id } });
+        getLogger(LoggerConfigs[Modules.DOWNLOAD_TASK]).debug(`✅ Saved: ${this.track.name}`, 
+            { meta: { songId: this.track.id, filename: DownloadResolver.getFolder() + "/" + result.filename } });
     };
     async onFailure(): Promise<void> {
-        getLogger(LoggerConfigs[Modules.DOWNLOAD_TASK]).info(`❌ Failed to download: ${this.track.name}`)
+        getLogger(LoggerConfigs[Modules.DOWNLOAD_TASK]).debug(`❌ Failed to download: ${this.track.name}`)
     };
 }

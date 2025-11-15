@@ -1,12 +1,13 @@
 import path from "path";
 import mongoose from "mongoose";
 import TelegramBot from "node-telegram-bot-api";
+import fs from "fs";
 import { TELEGRAM_BOT, DATABASE, RESOLVERS, TELEGRAM_CLIENTS } from "./config/secrets.js";
 import SpotifyUser from "../modules/spotify/SpotifyUser.js";
 import { app } from "./server.js";
 import PriorityWorkerQueue from "../core/PriorityWorkerQueue.js";
 import DownloadResolver from "../modules/download/DownloadResolver.js";
-import { updateMetadata } from "../modules/metadata/metadataManager.js";
+import { toLRC, updateMetadata } from "../modules/metadata/utils.js";
 import { Song } from "../models/Song.js";
 import { Playlist } from "../models/Playlist.js";
 import { User } from "../models/User.js";
@@ -527,7 +528,23 @@ async function downloadPlaylist(chatId, args) {
                         (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save();
                     downloadLogger.info(`✅ Saved: ${song.track.name}`, { meta: { songId: sng.spotify_id } });
                     if (!sng.lyric)
-                        lyricQueue.addTask(new LyricTask(sng.toTags()));
+                        lyricQueue.addTask(new LyricTask(sng.toTags(), async (res) => {
+                            sng.lyric = {
+                                instrumental: res.instrumental,
+                                synced: res.synced,
+                                lines: res.lyric
+                            };
+                            await sng.save();
+                            getLogger(LoggerConfigs[Modules.LYRIC_TASK]).info(`✅ Saved ${res.synced ? "synced" : "unsynced"} lyric for:`, sng.title);
+                            if (!res.instrumental)
+                                fs.writeFileSync(path.join(DownloadResolver.getFolder(), result.filename.replace(/\.(mp3|flac)(?=$|\?|#)/i, ".lrc")), `
+                                    [ar:${sng.artists[0].name}]
+                                    [ti:${sng.title}]
+                                    [al:${sng.album.name}]
+                    
+                                    ${toLRC(res.lyric)}
+                                    `.replace(/^[ \t]+/gm, '').trim());
+                        }));
                     count++;
                     if (count >= tracks.length) {
                         downloadLogger.info('Playlist Dowloaded', { meta: { playlistId: args.playlistId, chatId } });

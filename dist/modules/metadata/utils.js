@@ -2,60 +2,54 @@ import * as mm from "music-metadata";
 import { fileTypeFromBuffer } from "file-type";
 import NodeID3 from "node-id3";
 import Metaflac from 'metaflac-js';
-import { TExtendedTags } from "../../types/index.js";
 import { MetadataErrors } from "../../errors/index.js";
 import getLogger from "../../core/logSystem.js";
 import { LoggerConfigs, Modules } from "../../app/config/configs.js";
-
-async function fetchImage(url: string | URL) {
+async function fetchImage(url) {
     const response = await fetch(url);
     const arrayBuffer = await response.arrayBuffer();
     return Buffer.from(new Uint8Array(arrayBuffer));
 }
-
 /**
  * Update metadata for MP3 & FLAC files..
  */
-export async function updateMetadata(filePath: string, tags: TExtendedTags) {
+export async function updateMetadata(filePath, tags) {
     // Detect file type
     const metadata = await mm.parseFile(filePath);
-    const format = metadata.format.container!.toLowerCase();
-
-    let buffer: Buffer<ArrayBuffer> | undefined
-    let mime: string | undefined
+    const format = metadata.format.container.toLowerCase();
+    let buffer;
+    let mime;
     try {
-
         if (tags.cover == undefined)
-            throw new MetadataErrors.NoCoverFoundError()
-
+            throw new MetadataErrors.NoCoverFoundError();
         if ('url' in tags.cover) {
-            buffer = await fetchImage(tags.cover.url)
-            mime = (await fileTypeFromBuffer(buffer))!.mime
-        } else {
-            mime = tags.cover.mime
-            buffer = tags.cover.buffer
+            buffer = await fetchImage(tags.cover.url);
+            mime = (await fileTypeFromBuffer(buffer)).mime;
+        }
+        else {
+            mime = tags.cover.mime;
+            buffer = tags.cover.buffer;
         }
         if (mime !== 'image/jpeg' && mime !== 'image/png') {
             throw new MetadataErrors.UnsupportedMimeTypeError();
         }
-
-    } catch (e) {
-        if(e instanceof MetadataErrors.UnsupportedMimeTypeError)
-            getLogger(LoggerConfigs[Modules.METADATA_MANAGER]).error(e)
     }
-
+    catch (e) {
+        if (e instanceof MetadataErrors.UnsupportedMimeTypeError)
+            getLogger(LoggerConfigs[Modules.METADATA_MANAGER]).error(e);
+    }
     if (format.includes("mpeg")) {
         // ----- MP3 -----
-        const id3Tags: NodeID3.Tags = {
-            title: tags.title,        // Title
+        const id3Tags = {
+            title: tags.title, // Title
             artist: Array.isArray(tags.artists) ? tags.artists.join(";") : tags.artists, // Artists
-            album: tags.album,        // Album
-            year: tags.year?.toString(),          // Year
+            album: tags.album, // Album
+            year: tags.year?.toString(), // Year
             releaseTime: tags.released_at?.toDateString(),
             genre: tags.genres ? tags.genres.join(";") : undefined, // Genre
-            trackNumber: tags.trackNumber?.toString(),  // Track number
-            composer: tags.composer,     // Composer
-            publisher: tags.publisher,    // Publisher
+            trackNumber: tags.trackNumber?.toString(), // Track number
+            composer: tags.composer, // Composer
+            publisher: tags.publisher, // Publisher
             unsynchronisedLyrics: tags.lyrics
                 ? { language: "eng", text: tags.lyrics }
                 : undefined,
@@ -71,14 +65,13 @@ export async function updateMetadata(filePath: string, tags: TExtendedTags) {
                 }
                 : undefined
         };
-
         const success = NodeID3.update(id3Tags, filePath);
-        if (!success) throw new Error("Failed to update MP3 metadata");
-
-    } else if (format.includes("flac")) {
+        if (!success)
+            throw new Error("Failed to update MP3 metadata");
+    }
+    else if (format.includes("flac")) {
         // ----- FLAC -----
         const flac = new Metaflac(filePath);
-
         // Standard Vorbis comments
         if (tags.title) {
             flac.removeTag("TITLE");
@@ -100,7 +93,7 @@ export async function updateMetadata(filePath: string, tags: TExtendedTags) {
             flac.removeTag("GENRE");
             tags.genres.forEach(genre => {
                 flac.setTag(`GENRE=${genre}`);
-            })
+            });
         }
         if (tags.trackNumber) {
             flac.removeTag("TRACKNUMBER");
@@ -122,13 +115,11 @@ export async function updateMetadata(filePath: string, tags: TExtendedTags) {
             flac.removeTag("PUBLISHER");
             flac.setTag(`PUBLISHER=${tags.publisher}`);
         }
-
         // Cover art
         if (mime && buffer) {
-            flac.pictures = []
-            flac.picturesDatas = []
-            flac.picturesSpecs = []
-
+            flac.pictures = [];
+            flac.picturesDatas = [];
+            flac.picturesSpecs = [];
             const spec = flac.buildSpecification({
                 mime,
                 width: 640,
@@ -137,10 +128,26 @@ export async function updateMetadata(filePath: string, tags: TExtendedTags) {
             flac.pictures.push(flac.buildPictureBlock(buffer, spec));
             flac.picturesSpecs.push(spec);
         }
-
         flac.save();
-    } else {
+    }
+    else {
         throw new MetadataErrors.UnsupportedMusicFileError();
     }
 }
-
+export function toLRC(lines) {
+    return lines.reduce((acc, { text, timestamp }) => {
+        if (!text)
+            return acc; // skip empty text
+        if (typeof timestamp === 'number') {
+            const totalSeconds = timestamp / 1000;
+            const m = Math.floor(totalSeconds / 60);
+            const s = Math.floor(totalSeconds % 60);
+            const cs = Math.floor((totalSeconds * 100) % 100); // hundredths
+            acc += `[${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}]${text}\n`;
+        }
+        else {
+            acc += `${text}\n`; // unsynced line
+        }
+        return acc;
+    }, '');
+}

@@ -11,15 +11,15 @@ import WorkerInterface from "./WorkerInterface"
  * @template TWorker worker aka the entity that proceesses the task 
  */
 export default class PriorityWorkerQueue<TResult, TTask extends TaskInterface<TResult>, TWorker extends WorkerInterface<TResult, TTask>> {
-    private workers: TWorker[][]
-    private queues: TTask[][]
+    protected workers: TWorker[][]
+    protected queues: TTask[][]
 
     constructor(workers: TWorker[]) {
         this.workers = this.groupByPriority(workers)
         this.queues = this.workers.map(() => [])
     }
 
-    private groupByPriority(arr: TWorker[]): TWorker[][] {
+    protected groupByPriority(arr: TWorker[]): TWorker[][] {
         const groups = new Map<number, TWorker[]>()
         for (const item of arr) {
             if (!groups.has(item.priority)) groups.set(item.priority, [])
@@ -37,7 +37,7 @@ export default class PriorityWorkerQueue<TResult, TTask extends TaskInterface<TR
     }
 
     /** Try to assign tasks for a specific layer */
-    private dispatch(layer: number) {
+    protected dispatch(layer: number) {
         const queue = this.queues[layer]
         if (queue.length === 0) return
 
@@ -49,11 +49,13 @@ export default class PriorityWorkerQueue<TResult, TTask extends TaskInterface<TR
         }
     }
 
-    private async processTask(task: TTask, layer: number, worker: TWorker) {
+    protected async processTask(task: TTask, layer: number, worker: TWorker) {
         worker.busy = true
         try {
             let result = await worker.run(task)
             task.onSuccess(result)
+            if(task.afterSuccess)
+                task.afterSuccess() 
         } catch {
             // escalate to next layer
             if (layer + 1 < this.queues.length) {
@@ -61,6 +63,8 @@ export default class PriorityWorkerQueue<TResult, TTask extends TaskInterface<TR
                 this.dispatch(layer + 1)
             } else {
                 task.onFailure()
+                if(task.afterFailure) 
+                    task.afterFailure()
             }
         } finally {
             worker.busy = false

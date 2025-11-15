@@ -17,11 +17,11 @@ import { LyricTask } from "../modules/metadata/LyricTask.js";
 import { lrclibWorker } from "../modules/metadata/lyricWorkers/lrclib.js";
 import getLogger from "../core/logSystem.js";
 import { LoggerConfigs, Modules } from "./config/configs.js";
-const DownloadQueue = (PriorityWorkerQueue);
+import TelegramQueue from "../modules/telegram/TelegramQueue.js";
 const LyricQueue = (PriorityWorkerQueue);
 let lyricQueue = new LyricQueue([new lrclibWorker()]);
 let tgWorkers = TELEGRAM_CLIENTS.map((client) => new TelegramWorker(client, RESOLVERS));
-let downloadQueue = new DownloadQueue(tgWorkers);
+let downloadQueue = new TelegramQueue(tgWorkers);
 const bot = new TelegramBot(TELEGRAM_BOT.TELEGRAM_BOT_TOKEN);
 await mongoose.connect(DATABASE.DB_URL);
 const telegramLogger = getLogger(LoggerConfigs[Modules.TELEGRAM_BOT]);
@@ -514,6 +514,7 @@ async function downloadPlaylist(chatId, args) {
         downloadQueue.addTask(new TelegramTask({
             track: song.track,
             added_at: new Date(song.added_at),
+            retries: 1,
             handlers: {
                 onSuccess: async (result) => {
                     let sng = Song.parse(song.track);
@@ -533,42 +534,14 @@ async function downloadPlaylist(chatId, args) {
                         bot.sendMessage(chatId, `✅ downloaded playlist: ${playlist.name}`);
                     }
                 },
-                // try another time
                 onFailure: async () => {
-                    getLogger(LoggerConfigs[Modules.TELEGRAM_QUEUE]).debug('Reinserting song in queue...', { meta: { songId: song.track.id } });
-                    downloadQueue.addTask(new TelegramTask({
-                        track: song.track,
-                        added_at: new Date(song.added_at),
-                        handlers: {
-                            onSuccess: async (result) => {
-                                let sng = Song.parse(song.track);
-                                sng.filename = result.filename;
-                                downloadLogger.debug('Updating song metadata...', { meta: { songId: sng.spotify_id } });
-                                await updateMetadata(path.join(DownloadResolver.getFolder(), result.filename), sng.toTags());
-                                sng.save();
-                                let record = await PlaylistSong.findOne({ playlistId: playlist.id, songId: sng.id });
-                                if (!record)
-                                    (new PlaylistSong({ playlistId: playlist.id, songId: sng.id, added_at: new Date(song.added_at) })).save();
-                                downloadLogger.info(`✅ Saved: ${song.track.name}`, { meta: { songId: sng.spotify_id } });
-                                if (!sng.lyric)
-                                    lyricQueue.addTask(new LyricTask(sng.toTags()));
-                                count++;
-                                if (count >= tracks.length) {
-                                    downloadLogger.info('Playlist Dowloaded', { meta: { playlistId: args.playlistId, chatId } });
-                                    bot.sendMessage(chatId, `✅ downloaded playlist: ${playlist.name}`);
-                                }
-                            },
-                            onFailure: async () => {
-                                bot.sendMessage(chatId, `❌ Failed to download: ${song.track.name}`);
-                                downloadLogger.info(`❌ Failed to download: ${song.track.name}`, { meta: { songId: song.track.id } });
-                                count++;
-                                if (count >= tracks.length) {
-                                    downloadLogger.info('Playlist Dowloaded', { meta: { playlistId: args.playlistId, chatId } });
-                                    bot.sendMessage(chatId, `✅ downloaded playlist: ${playlist.name}`);
-                                }
-                            }
-                        }
-                    }));
+                    bot.sendMessage(chatId, `❌ Failed to download: ${song.track.name}`);
+                    downloadLogger.info(`❌ Failed to download: ${song.track.name}`, { meta: { songId: song.track.id } });
+                    count++;
+                    if (count >= tracks.length) {
+                        downloadLogger.info('Playlist Dowloaded', { meta: { playlistId: args.playlistId, chatId } });
+                        bot.sendMessage(chatId, `✅ downloaded playlist: ${playlist.name}`);
+                    }
                 }
             }
         }));

@@ -26,6 +26,14 @@ export default class TelegramWorker implements WorkerInterface<void, TelegramTas
     async run(task: TelegramTask): Promise<void> {
         let body: DownloadTaskBody = { ...task, client: this.client }
         getLogger(LoggerConfigs[Modules.TELEGRAM_WORKER]).debug('Inserting song in download queue...', { meta: { songId: task.track.id } })
-        this.songQ.addTask(new DownloadTask(body, task.handlers.onSuccess, task.handlers.onFailure))
+
+        return new Promise<void>((resolve, reject) => {
+            this.songQ.addTask(new DownloadTask(body, {
+                onSuccess: task.handlers.onSuccess,
+                onFailure: undefined,
+                afterSuccess: resolve,
+                afterFailure: reject
+            }))
+        })
     }
 }

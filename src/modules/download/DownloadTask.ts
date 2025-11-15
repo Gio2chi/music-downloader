@@ -22,15 +22,29 @@ export class DownloadTask implements TaskInterface<DownloadTaskResult>, Download
     track: SpotifyApi.TrackObjectFull;
     added_at: Date;
     filename?: string | undefined;
+    
+    afterSuccess?: (() => void) | undefined;
+    afterFailure?: (() => void) | undefined;
 
-    constructor(body: DownloadTaskBody, onSuccess = async (result: DownloadTaskResult): Promise<void> => { }, onFailure = async (): Promise<void> => { }) {
+    constructor(body: DownloadTaskBody, options: {
+        onSuccess: ((result: DownloadTaskResult) => Promise<void>) | undefined,
+        afterSuccess: (() => void) | undefined,
+        onFailure:  (() => Promise<void>) | undefined,
+        afterFailure: (() => void) | undefined
+    }) {
         this.client = body.client
         this.track = body.track
         this.added_at = body.added_at
         this.filename = body.filename
         
-        this.onSuccess = onSuccess
-        this.onFailure = onFailure
+        this.afterSuccess = options.afterSuccess
+        this.afterFailure = options.afterFailure
+        
+        if(options.onSuccess)
+            this.onSuccess = options.onSuccess
+        
+        if(options.onFailure)
+            this.onFailure = options.onFailure
     }
 
     async onSuccess(result: DownloadTaskResult): Promise<void> {

@@ -6,7 +6,8 @@ import { DownloadTaskResult } from "../download/DownloadTask.js";
 export interface TelegramTaskBody {
     track: SpotifyApi.TrackObjectFull,
     added_at: Date
-    filename?: string
+    filename?: string,
+    retries?: number;
     handlers: {
         onSuccess?: (result: DownloadTaskResult) => Promise<void>
         onFailure?: () => Promise<void>
@@ -16,6 +17,7 @@ export interface TelegramTaskBody {
 export class TelegramTask implements TaskInterface<void>, TelegramTaskBody {
     track: SpotifyApi.TrackObjectFull;
     added_at: Date;
+    retries: number;
     filename?: string | undefined;
     handlers: { onSuccess?: (result: DownloadTaskResult) => Promise<void>; onFailure?: () => Promise<void>; };
 
@@ -24,6 +26,7 @@ export class TelegramTask implements TaskInterface<void>, TelegramTaskBody {
         this.added_at = task.added_at
         this.filename = task.filename
         this.handlers = task.handlers
+        this.retries = task.retries ?? 0
     }
 
     async onSuccess(result: void): Promise<void> {

@@ -47,6 +47,8 @@ export default class PriorityWorkerQueue {
         try {
             let result = await worker.run(task);
             task.onSuccess(result);
+            if (task.afterSuccess)
+                task.afterSuccess();
         }
         catch {
             // escalate to next layer
@@ -56,6 +58,8 @@ export default class PriorityWorkerQueue {
             }
             else {
                 task.onFailure();
+                if (task.afterFailure)
+                    task.afterFailure();
             }
         }
         finally {

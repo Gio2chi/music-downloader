@@ -9,5 +9,7 @@
  */
 export default interface TaskInterface<TResult> {
     onSuccess: (result: TResult) => Promise<void>;
+    afterSuccess?: () => void;
     onFailure: () => Promise<void>;
+    afterFailure?: () => void;
 }

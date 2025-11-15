@@ -10,13 +10,13 @@ import WorkerInterface from "./WorkerInterface";
  * @template TWorker worker aka the entity that proceesses the task
  */
 export default class PriorityWorkerQueue<TResult, TTask extends TaskInterface<TResult>, TWorker extends WorkerInterface<TResult, TTask>> {
-    private workers;
-    private queues;
+    protected workers: TWorker[][];
+    protected queues: TTask[][];
     constructor(workers: TWorker[]);
-    private groupByPriority;
+    protected groupByPriority(arr: TWorker[]): TWorker[][];
     /** Add a new task → starts in layer 0 */
     addTask(task: TTask): void;
     /** Try to assign tasks for a specific layer */
-    private dispatch;
-    private processTask;
+    protected dispatch(layer: number): void;
+    protected processTask(task: TTask, layer: number, worker: TWorker): Promise<void>;
 }
